@@ -1,0 +1,1143 @@
+{
+  "repo_path": "./VulnerableWebApplication",
+  "repo_url": "https://github.com/tejal-rathod/VulnerableWebApplication.git",
+  "scan_timestamp": "2026-07-04T12:21:16.776343",
+  "elapsed_seconds": 5.93,
+  "files_scanned": 10,
+  "total_findings": 91,
+  "severity_counts": {
+    "CRITICAL": 55,
+    "HIGH": 36
+  },
+  "label_counts": {
+    "hardcoded_secret": 30,
+    "insecure_api": 36,
+    "sql_injection": 25
+  },
+  "critical_files": [
+    "VulnerableWebApplication\\pom.xml",
+    "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\config\\AppLauncher.java",
+    "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\config\\SessionUserFilter.java",
+    "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\controller\\AdvertisementController.java",
+    "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\controller\\UserController.java",
+    "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\model\\Advertisement.java",
+    "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\model\\User.java",
+    "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\repository\\AdvertisementRepository.java",
+    "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\repository\\UserRepository.java",
+    "VulnerableWebApplication\\src\\main\\resources\\application.properties"
+  ],
+  "has_critical": true,
+  "file_reports": [
+    {
+      "file": "VulnerableWebApplication\\pom.xml",
+      "relative_path": "VulnerableWebApplication\\pom.xml",
+      "extension": ".xml",
+      "skipped": false,
+      "total_lines": 61,
+      "findings": [
+        {
+          "line_range": "1-10",
+          "line_start": 1,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.995,
+          "code_chunk": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project xmlns=\"http://maven.apache.org/POM/4.0.0\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n\txsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd\">\n\t<modelVersion>4.0.0</modelVersion>\n\n\t<groupId>com.github.rafaelrpinto</groupId>\n\t<artifactId>vulnerablejavawebapp</artifactId>\n\t<version>0.0.1-SNAPSHOT</version>\n\n\t<parent>",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        }
+      ],
+      "finding_count": 1,
+      "has_critical": true
+    },
+    {
+      "file": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\config\\AppLauncher.java",
+      "relative_path": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\config\\AppLauncher.java",
+      "extension": ".java",
+      "skipped": false,
+      "total_lines": 94,
+      "findings": [
+        {
+          "line_range": "25-34",
+          "line_start": 25,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.93,
+          "code_chunk": "/**\n * Class that configures and launches the application.\n * \n * @author Rafael\n *\n */\n@ComponentScan(basePackages = { \"com.github.rafaelrpinto.vulnerablejavawebapp.controller\",\n\t\t\"com.github.rafaelrpinto.vulnerablejavawebapp.repository\" })\n@EnableAutoConfiguration\npublic class AppLauncher {",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "29-38",
+          "line_start": 29,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.93,
+          "code_chunk": "*\n */\n@ComponentScan(basePackages = { \"com.github.rafaelrpinto.vulnerablejavawebapp.controller\",\n\t\t\"com.github.rafaelrpinto.vulnerablejavawebapp.repository\" })\n@EnableAutoConfiguration\npublic class AppLauncher {\n\n\t@Autowired\n\tprivate DataSource dataSource;",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "33-42",
+          "line_start": 33,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.49,
+          "code_chunk": "@EnableAutoConfiguration\npublic class AppLauncher {\n\n\t@Autowired\n\tprivate DataSource dataSource;\n\n\t@Bean\n\tpublic ViewResolver getViewResolver() {\n\t\tInternalResourceViewResolver resolver = new InternalResourceViewResolver();\n\t\tresolver.setPrefix(\"/WEB-INF/jsp/\");",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "37-46",
+          "line_start": 37,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.5,
+          "code_chunk": "private DataSource dataSource;\n\n\t@Bean\n\tpublic ViewResolver getViewResolver() {\n\t\tInternalResourceViewResolver resolver = new InternalResourceViewResolver();\n\t\tresolver.setPrefix(\"/WEB-INF/jsp/\");\n\t\tresolver.setSuffix(\".jsp\");\n\t\treturn resolver;\n\t}",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "41-50",
+          "line_start": 41,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.785,
+          "code_chunk": "InternalResourceViewResolver resolver = new InternalResourceViewResolver();\n\t\tresolver.setPrefix(\"/WEB-INF/jsp/\");\n\t\tresolver.setSuffix(\".jsp\");\n\t\treturn resolver;\n\t}\n\n\t@Bean\n\tpublic DataSource dataSource() {\n\t\tEmbeddedDatabaseBuilder builder = new EmbeddedDatabaseBuilder();\n\t\treturn builder.setType(EmbeddedDatabaseType.H2).addScript(\"db/schema.sql\").addScript(\"db/data.sql\").build();",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "45-54",
+          "line_start": 45,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.5,
+          "code_chunk": "}\n\n\t@Bean\n\tpublic DataSource dataSource() {\n\t\tEmbeddedDatabaseBuilder builder = new EmbeddedDatabaseBuilder();\n\t\treturn builder.setType(EmbeddedDatabaseType.H2).addScript(\"db/schema.sql\").addScript(\"db/data.sql\").build();\n\t}\n\n\t@Bean\n\tpublic JdbcTemplate getJdbcTemplate() {",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "49-58",
+          "line_start": 49,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.5,
+          "code_chunk": "EmbeddedDatabaseBuilder builder = new EmbeddedDatabaseBuilder();\n\t\treturn builder.setType(EmbeddedDatabaseType.H2).addScript(\"db/schema.sql\").addScript(\"db/data.sql\").build();\n\t}\n\n\t@Bean\n\tpublic JdbcTemplate getJdbcTemplate() {\n\t\treturn new JdbcTemplate(dataSource);\n\t}\n\n\t@Bean",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "53-62",
+          "line_start": 53,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.43,
+          "code_chunk": "@Bean\n\tpublic JdbcTemplate getJdbcTemplate() {\n\t\treturn new JdbcTemplate(dataSource);\n\t}\n\n\t@Bean\n\tpublic FilterRegistrationBean someFilterRegistration() {\n\t\tFilterRegistrationBean registration = new FilterRegistrationBean();\n\t\tregistration.setFilter(sessionUserFilter());\n\t\tregistration.addUrlPatterns(\"/secure/*\");",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "57-66",
+          "line_start": 57,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.445,
+          "code_chunk": "@Bean\n\tpublic FilterRegistrationBean someFilterRegistration() {\n\t\tFilterRegistrationBean registration = new FilterRegistrationBean();\n\t\tregistration.setFilter(sessionUserFilter());\n\t\tregistration.addUrlPatterns(\"/secure/*\");\n\t\tregistration.setName(\"sessionUserFilter\");\n\t\tregistration.setOrder(1);\n\t\treturn registration;\n\t}",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "61-70",
+          "line_start": 61,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.555,
+          "code_chunk": "registration.setFilter(sessionUserFilter());\n\t\tregistration.addUrlPatterns(\"/secure/*\");\n\t\tregistration.setName(\"sessionUserFilter\");\n\t\tregistration.setOrder(1);\n\t\treturn registration;\n\t}\n\n\t@Bean(name = \"sessionUserFilter\")\n\tpublic Filter sessionUserFilter() {\n\t\treturn new SessionUserFilter();",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "65-74",
+          "line_start": 65,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.545,
+          "code_chunk": "return registration;\n\t}\n\n\t@Bean(name = \"sessionUserFilter\")\n\tpublic Filter sessionUserFilter() {\n\t\treturn new SessionUserFilter();\n\t}\n\n\tpublic static void main(String[] args) throws Exception {\n\t\tSpringApplication.run(AppLauncher.class, args);",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "73-82",
+          "line_start": 73,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.735,
+          "code_chunk": "public static void main(String[] args) throws Exception {\n\t\tSpringApplication.run(AppLauncher.class, args);\n\t}\n\n\t// The following configurations are usally on the application servers and\n\t// not in the code\n\t// but since we are using spring boot to make things simple we configure via\n\t// code\n\t@SuppressWarnings(\"deprecation\")\n\t@Bean",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "77-86",
+          "line_start": 77,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.975,
+          "code_chunk": "// The following configurations are usally on the application servers and\n\t// not in the code\n\t// but since we are using spring boot to make things simple we configure via\n\t// code\n\t@SuppressWarnings(\"deprecation\")\n\t@Bean\n\tpublic ServletContextInitializer servletContextInitializer() {\n\t\treturn new ServletContextInitializer() {\n\t\t\t@Override\n\t\t\tpublic void onStartup(ServletContext servletContext) throws ServletException {",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "81-90",
+          "line_start": 81,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.615,
+          "code_chunk": "@SuppressWarnings(\"deprecation\")\n\t@Bean\n\tpublic ServletContextInitializer servletContextInitializer() {\n\t\treturn new ServletContextInitializer() {\n\t\t\t@Override\n\t\t\tpublic void onStartup(ServletContext servletContext) throws ServletException {\n\t\t\t\tservletContext.setSessionTrackingModes(Collections.singleton(SessionTrackingMode.COOKIE));\n\t\t\t\tSessionCookieConfig sessionCookieConfig = servletContext.getSessionCookieConfig();\n\t\t\t\tsessionCookieConfig.setHttpOnly(true);\n\t\t\t}",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "85-94",
+          "line_start": 85,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.8,
+          "code_chunk": "@Override\n\t\t\tpublic void onStartup(ServletContext servletContext) throws ServletException {\n\t\t\t\tservletContext.setSessionTrackingModes(Collections.singleton(SessionTrackingMode.COOKIE));\n\t\t\t\tSessionCookieConfig sessionCookieConfig = servletContext.getSessionCookieConfig();\n\t\t\t\tsessionCookieConfig.setHttpOnly(true);\n\t\t\t}\n\t\t};\n\n\t}\n}",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        }
+      ],
+      "finding_count": 15,
+      "has_critical": true
+    },
+    {
+      "file": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\config\\SessionUserFilter.java",
+      "relative_path": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\config\\SessionUserFilter.java",
+      "extension": ".java",
+      "skipped": false,
+      "total_lines": 49,
+      "findings": [
+        {
+          "line_range": "25-34",
+          "line_start": 25,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.475,
+          "code_chunk": "@Override\n\tpublic void destroy() {\n\t}\n\n\t@Override\n\tpublic void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain chain)\n\t\t\t\t\tthrows IOException, ServletException {\n\t\tHttpServletRequest request = (HttpServletRequest) servletRequest;\n\t\tHttpServletResponse response = (HttpServletResponse) servletResponse;",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "29-38",
+          "line_start": 29,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.46,
+          "code_chunk": "@Override\n\tpublic void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain chain)\n\t\t\t\t\tthrows IOException, ServletException {\n\t\tHttpServletRequest request = (HttpServletRequest) servletRequest;\n\t\tHttpServletResponse response = (HttpServletResponse) servletResponse;\n\n\t\tUser user = (User) request.getSession().getAttribute(\"sessionUser\");\n\t\tif (user == null) {\n\t\t\tresponse.sendRedirect(\"/login\");",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "33-42",
+          "line_start": 33,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.46,
+          "code_chunk": "HttpServletRequest request = (HttpServletRequest) servletRequest;\n\t\tHttpServletResponse response = (HttpServletResponse) servletResponse;\n\n\t\tUser user = (User) request.getSession().getAttribute(\"sessionUser\");\n\t\tif (user == null) {\n\t\t\tresponse.sendRedirect(\"/login\");\n\t\t} else {\n\t\t\tchain.doFilter(request, response);\n\t\t}\n\t}",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "37-46",
+          "line_start": 37,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.51,
+          "code_chunk": "if (user == null) {\n\t\t\tresponse.sendRedirect(\"/login\");\n\t\t} else {\n\t\t\tchain.doFilter(request, response);\n\t\t}\n\t}\n\n\t@Override\n\tpublic void init(FilterConfig arg0) throws ServletException {",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        }
+      ],
+      "finding_count": 4,
+      "has_critical": true
+    },
+    {
+      "file": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\controller\\AdvertisementController.java",
+      "relative_path": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\controller\\AdvertisementController.java",
+      "extension": ".java",
+      "skipped": false,
+      "total_lines": 64,
+      "findings": [
+        {
+          "line_range": "21-30",
+          "line_start": 21,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.37,
+          "code_chunk": "* \n * @author Rafael\n *\n */\n@Controller\npublic class AdvertisementController {\n\n\t@Autowired\n\tprivate AdvertisementRepository advertisementRepository;",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "25-34",
+          "line_start": 25,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.8,
+          "code_chunk": "@Controller\npublic class AdvertisementController {\n\n\t@Autowired\n\tprivate AdvertisementRepository advertisementRepository;\n\t\n\t@RequestMapping(value = \"/\")\n\tString home(Model model) {\n\t\tmodel.addAttribute(\"ads\", this.advertisementRepository.findAll());\n\t\treturn \"home\";",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "29-38",
+          "line_start": 29,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.8,
+          "code_chunk": "private AdvertisementRepository advertisementRepository;\n\t\n\t@RequestMapping(value = \"/\")\n\tString home(Model model) {\n\t\tmodel.addAttribute(\"ads\", this.advertisementRepository.findAll());\n\t\treturn \"home\";\n\t}\n\t\n\t@RequestMapping(value = \"/search\")\n\tString search(@RequestParam(\"keyword\") String keyword,  Model model) {",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "33-42",
+          "line_start": 33,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.8,
+          "code_chunk": "model.addAttribute(\"ads\", this.advertisementRepository.findAll());\n\t\treturn \"home\";\n\t}\n\t\n\t@RequestMapping(value = \"/search\")\n\tString search(@RequestParam(\"keyword\") String keyword,  Model model) {\n\t\tmodel.addAttribute(\"ads\", this.advertisementRepository.findByKeyword(keyword));\n\t\tmodel.addAttribute(\"keyword\", keyword);\n\t\treturn \"home\";\n\t}",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "37-46",
+          "line_start": 37,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.485,
+          "code_chunk": "@RequestMapping(value = \"/search\")\n\tString search(@RequestParam(\"keyword\") String keyword,  Model model) {\n\t\tmodel.addAttribute(\"ads\", this.advertisementRepository.findByKeyword(keyword));\n\t\tmodel.addAttribute(\"keyword\", keyword);\n\t\treturn \"home\";\n\t}\n\t\n\t@RequestMapping(value = \"/secure/newAd\", method=RequestMethod.GET)\n\tString showNewAdForm(Model model) {\n\t\treturn \"newAdForm\";",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "41-50",
+          "line_start": 41,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.485,
+          "code_chunk": "return \"home\";\n\t}\n\t\n\t@RequestMapping(value = \"/secure/newAd\", method=RequestMethod.GET)\n\tString showNewAdForm(Model model) {\n\t\treturn \"newAdForm\";\n\t}\n\t\n\t@RequestMapping(value = \"/secure/newAd\", method=RequestMethod.POST)\n\tString processNewAdForm(@RequestParam(\"title\") String title, @RequestParam(\"text\") String text, HttpSession session) {",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "45-54",
+          "line_start": 45,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.395,
+          "code_chunk": "String showNewAdForm(Model model) {\n\t\treturn \"newAdForm\";\n\t}\n\t\n\t@RequestMapping(value = \"/secure/newAd\", method=RequestMethod.POST)\n\tString processNewAdForm(@RequestParam(\"title\") String title, @RequestParam(\"text\") String text, HttpSession session) {\n\t\t\n\t\tUser user = (User) session.getAttribute(\"sessionUser\");\n\t\t\n\t\tAdvertisement ad = new Advertisement();",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "49-58",
+          "line_start": 49,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.375,
+          "code_chunk": "@RequestMapping(value = \"/secure/newAd\", method=RequestMethod.POST)\n\tString processNewAdForm(@RequestParam(\"title\") String title, @RequestParam(\"text\") String text, HttpSession session) {\n\t\t\n\t\tUser user = (User) session.getAttribute(\"sessionUser\");\n\t\t\n\t\tAdvertisement ad = new Advertisement();\n\t\tad.setTitle(title);\n\t\tad.setText(text);\n\t\tad.setCreateDate(new Date());\n\t\tad.setUser(user);",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "53-62",
+          "line_start": 53,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.475,
+          "code_chunk": "Advertisement ad = new Advertisement();\n\t\tad.setTitle(title);\n\t\tad.setText(text);\n\t\tad.setCreateDate(new Date());\n\t\tad.setUser(user);\n\t\t\n\t\tthis.advertisementRepository.insert(ad);\n\t\t\n\t\treturn \"redirect:/\";",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        }
+      ],
+      "finding_count": 9,
+      "has_critical": true
+    },
+    {
+      "file": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\controller\\UserController.java",
+      "relative_path": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\controller\\UserController.java",
+      "extension": ".java",
+      "skipped": false,
+      "total_lines": 87,
+      "findings": [
+        {
+          "line_range": "21-30",
+          "line_start": 21,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.42,
+          "code_chunk": "* @author Rafael\n *\n */\n@Controller\npublic class UserController {\n\n\tprivate static final Logger LOGGER = Logger.getLogger( UserController.class.getName() );\n\t\n\t@Autowired\n\tprivate UserRepository userRepository;",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "25-34",
+          "line_start": 25,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.39,
+          "code_chunk": "public class UserController {\n\n\tprivate static final Logger LOGGER = Logger.getLogger( UserController.class.getName() );\n\t\n\t@Autowired\n\tprivate UserRepository userRepository;\n\n\t@RequestMapping(value = \"/logout\", method = RequestMethod.GET)\n\tString showLogin(HttpSession session) {\n\t\tLOGGER.info(\"Logging out...\");",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "29-38",
+          "line_start": 29,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.41,
+          "code_chunk": "@Autowired\n\tprivate UserRepository userRepository;\n\n\t@RequestMapping(value = \"/logout\", method = RequestMethod.GET)\n\tString showLogin(HttpSession session) {\n\t\tLOGGER.info(\"Logging out...\");\n\t\tsession.invalidate();\n\t\treturn \"redirect:/\";\n\t}",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "33-42",
+          "line_start": 33,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.49,
+          "code_chunk": "String showLogin(HttpSession session) {\n\t\tLOGGER.info(\"Logging out...\");\n\t\tsession.invalidate();\n\t\treturn \"redirect:/\";\n\t}\n\n\t@RequestMapping(value = \"/login\", method = RequestMethod.GET)\n\tString showLoginForm(Model model) {\n\t\treturn \"login\";\n\t}",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "37-46",
+          "line_start": 37,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.49,
+          "code_chunk": "}\n\n\t@RequestMapping(value = \"/login\", method = RequestMethod.GET)\n\tString showLoginForm(Model model) {\n\t\treturn \"login\";\n\t}\n\n\t@RequestMapping(value = \"/login\", method = RequestMethod.POST)\n\tString processLoginForm(@RequestParam(\"login\") String login, @RequestParam(\"password\") String password, Model model, HttpSession session) {\n\t\tLOGGER.info(\"Processing login for \" + login);",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "41-50",
+          "line_start": 41,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.52,
+          "code_chunk": "return \"login\";\n\t}\n\n\t@RequestMapping(value = \"/login\", method = RequestMethod.POST)\n\tString processLoginForm(@RequestParam(\"login\") String login, @RequestParam(\"password\") String password, Model model, HttpSession session) {\n\t\tLOGGER.info(\"Processing login for \" + login);\n\t\tUser user = this.userRepository.authenticate(login, password);\n\t\tif (user != null) {\n\t\t\tLOGGER.info(\"Login successful!\");\n\t\t\tsession.setAttribute(\"sessionUser\", user);",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "45-54",
+          "line_start": 45,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.41,
+          "code_chunk": "String processLoginForm(@RequestParam(\"login\") String login, @RequestParam(\"password\") String password, Model model, HttpSession session) {\n\t\tLOGGER.info(\"Processing login for \" + login);\n\t\tUser user = this.userRepository.authenticate(login, password);\n\t\tif (user != null) {\n\t\t\tLOGGER.info(\"Login successful!\");\n\t\t\tsession.setAttribute(\"sessionUser\", user);\n\t\t\treturn \"redirect:/\";\n\t\t} else {\n\t\t\tLOGGER.info(\"Invalid credentials!\");\n\t\t\tmodel.addAttribute(\"invalidCredentials\", true);",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "49-58",
+          "line_start": 49,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.44,
+          "code_chunk": "LOGGER.info(\"Login successful!\");\n\t\t\tsession.setAttribute(\"sessionUser\", user);\n\t\t\treturn \"redirect:/\";\n\t\t} else {\n\t\t\tLOGGER.info(\"Invalid credentials!\");\n\t\t\tmodel.addAttribute(\"invalidCredentials\", true);\n\t\t\treturn showLoginForm(model);\n\t\t}\n\t}",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "53-62",
+          "line_start": 53,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.58,
+          "code_chunk": "LOGGER.info(\"Invalid credentials!\");\n\t\t\tmodel.addAttribute(\"invalidCredentials\", true);\n\t\t\treturn showLoginForm(model);\n\t\t}\n\t}\n\t\n\t@RequestMapping(value = \"/signUp\", method = RequestMethod.GET)\n\tString showSignUpForm(Model model) {\n\t\treturn \"signUp\";\n\t}",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "57-66",
+          "line_start": 57,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.39,
+          "code_chunk": "}\n\t\n\t@RequestMapping(value = \"/signUp\", method = RequestMethod.GET)\n\tString showSignUpForm(Model model) {\n\t\treturn \"signUp\";\n\t}\n\t\n\t@RequestMapping(value = \"/signUp\", method = RequestMethod.POST)\n\tString processSignUpForm(@RequestParam(\"name\") String name, @RequestParam(\"email\") String email, @RequestParam(\"password\") String password, \n\t\t\t\t\tModel model, HttpSession session) {",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "61-70",
+          "line_start": 61,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.53,
+          "code_chunk": "return \"signUp\";\n\t}\n\t\n\t@RequestMapping(value = \"/signUp\", method = RequestMethod.POST)\n\tString processSignUpForm(@RequestParam(\"name\") String name, @RequestParam(\"email\") String email, @RequestParam(\"password\") String password, \n\t\t\t\t\tModel model, HttpSession session) {\n\t\tLOGGER.info(\"Processing sign up form!\");\n\t\tUser user = this.userRepository.find(email);\n\t\tif (user == null) {\n\t\t\tuser = new User();",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "65-74",
+          "line_start": 65,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.47,
+          "code_chunk": "String processSignUpForm(@RequestParam(\"name\") String name, @RequestParam(\"email\") String email, @RequestParam(\"password\") String password, \n\t\t\t\t\tModel model, HttpSession session) {\n\t\tLOGGER.info(\"Processing sign up form!\");\n\t\tUser user = this.userRepository.find(email);\n\t\tif (user == null) {\n\t\t\tuser = new User();\n\t\t\tuser.setName(name);\n\t\t\tuser.setEmail(email);\n\t\t\tuser.setPassword(password);",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "69-78",
+          "line_start": 69,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.48,
+          "code_chunk": "if (user == null) {\n\t\t\tuser = new User();\n\t\t\tuser.setName(name);\n\t\t\tuser.setEmail(email);\n\t\t\tuser.setPassword(password);\n\t\t\t\n\t\t\tthis.userRepository.insert(user);\n\t\t\tsession.setAttribute(\"sessionUser\", user);\n\t\t\t\n\t\t\tLOGGER.info(\"Sugn up successful!\");",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "73-82",
+          "line_start": 73,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.635,
+          "code_chunk": "user.setPassword(password);\n\t\t\t\n\t\t\tthis.userRepository.insert(user);\n\t\t\tsession.setAttribute(\"sessionUser\", user);\n\t\t\t\n\t\t\tLOGGER.info(\"Sugn up successful!\");\n\t\t\t\n\t\t\treturn \"forward:/\";\n\t\t} else {\n\t\t\tLOGGER.info(\"E-mail already exist: \" + email);",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "77-86",
+          "line_start": 77,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.685,
+          "code_chunk": "LOGGER.info(\"Sugn up successful!\");\n\t\t\t\n\t\t\treturn \"forward:/\";\n\t\t} else {\n\t\t\tLOGGER.info(\"E-mail already exist: \" + email);\n\t\t\tmodel.addAttribute(\"emailExists\", true);\n\t\t\treturn showSignUpForm(model);\n\t\t}\n\t}",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        }
+      ],
+      "finding_count": 15,
+      "has_critical": true
+    },
+    {
+      "file": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\model\\Advertisement.java",
+      "relative_path": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\model\\Advertisement.java",
+      "extension": ".java",
+      "skipped": false,
+      "total_lines": 67,
+      "findings": [
+        {
+          "line_range": "9-18",
+          "line_start": 9,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.47,
+          "code_chunk": "* \n * @author Rafael\n *\n */\npublic class Advertisement implements Serializable {\n\n\tprivate static final long serialVersionUID = 1743217303847332506L;\n\n\tprivate int id;\n\tprivate Date createDate;",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "13-22",
+          "line_start": 13,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.415,
+          "code_chunk": "public class Advertisement implements Serializable {\n\n\tprivate static final long serialVersionUID = 1743217303847332506L;\n\n\tprivate int id;\n\tprivate Date createDate;\n\tprivate String title;\n\tprivate String text;\n\tprivate User user;",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "21-30",
+          "line_start": 21,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.48,
+          "code_chunk": "private User user;\n\n\tpublic Advertisement() {\n\n\t}\n\n\tpublic int getId() {\n\t\treturn id;\n\t}",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "25-34",
+          "line_start": 25,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.665,
+          "code_chunk": "}\n\n\tpublic int getId() {\n\t\treturn id;\n\t}\n\n\tpublic void setId(int id) {\n\t\tthis.id = id;\n\t}",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "29-38",
+          "line_start": 29,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.665,
+          "code_chunk": "}\n\n\tpublic void setId(int id) {\n\t\tthis.id = id;\n\t}\n\n\tpublic Date getCreateDate() {\n\t\treturn createDate;\n\t}",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "33-42",
+          "line_start": 33,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.675,
+          "code_chunk": "}\n\n\tpublic Date getCreateDate() {\n\t\treturn createDate;\n\t}\n\n\tpublic void setCreateDate(Date createDate) {\n\t\tthis.createDate = createDate;\n\t}",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "37-46",
+          "line_start": 37,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.66,
+          "code_chunk": "}\n\n\tpublic void setCreateDate(Date createDate) {\n\t\tthis.createDate = createDate;\n\t}\n\n\tpublic String getTitle() {\n\t\treturn title;\n\t}",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "41-50",
+          "line_start": 41,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.66,
+          "code_chunk": "}\n\n\tpublic String getTitle() {\n\t\treturn title;\n\t}\n\n\tpublic void setTitle(String title) {\n\t\tthis.title = title;\n\t}",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "45-54",
+          "line_start": 45,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.66,
+          "code_chunk": "}\n\n\tpublic void setTitle(String title) {\n\t\tthis.title = title;\n\t}\n\n\tpublic String getText() {\n\t\treturn text;\n\t}",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "49-58",
+          "line_start": 49,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.66,
+          "code_chunk": "}\n\n\tpublic String getText() {\n\t\treturn text;\n\t}\n\n\tpublic void setText(String text) {\n\t\tthis.text = text;\n\t}",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "53-62",
+          "line_start": 53,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.54,
+          "code_chunk": "}\n\n\tpublic void setText(String text) {\n\t\tthis.text = text;\n\t}\n\n\tpublic User getUser() {\n\t\treturn user;\n\t}",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "57-66",
+          "line_start": 57,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.555,
+          "code_chunk": "}\n\n\tpublic User getUser() {\n\t\treturn user;\n\t}\n\n\tpublic void setUser(User user) {\n\t\tthis.user = user;\n\t}",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        }
+      ],
+      "finding_count": 12,
+      "has_critical": true
+    },
+    {
+      "file": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\model\\User.java",
+      "relative_path": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\model\\User.java",
+      "extension": ".java",
+      "skipped": false,
+      "total_lines": 56,
+      "findings": [
+        {
+          "line_range": "5-14",
+          "line_start": 5,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.385,
+          "code_chunk": "/**\n * \n * Registered user of the application.\n * \n * @author Rafael\n *\n */\npublic class User implements Serializable {\n\n\tprivate static final long serialVersionUID = 5746803907489367890L;",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "9-18",
+          "line_start": 9,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.36,
+          "code_chunk": "* @author Rafael\n *\n */\npublic class User implements Serializable {\n\n\tprivate static final long serialVersionUID = 5746803907489367890L;\n\n\tprivate int id;\n\tprivate String name;\n\tprivate String email;",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "13-22",
+          "line_start": 13,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.355,
+          "code_chunk": "private static final long serialVersionUID = 5746803907489367890L;\n\n\tprivate int id;\n\tprivate String name;\n\tprivate String email;\n\tprivate String password;\n\n\tpublic User() {",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "17-26",
+          "line_start": 17,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.4,
+          "code_chunk": "private String name;\n\tprivate String email;\n\tprivate String password;\n\n\tpublic User() {\n\n\t}\n\n\tpublic String getPassword() {\n\t\treturn password;",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "21-30",
+          "line_start": 21,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.575,
+          "code_chunk": "public User() {\n\n\t}\n\n\tpublic String getPassword() {\n\t\treturn password;\n\t}\n\n\tpublic void setPassword(String password) {\n\t\tthis.password = password;",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "25-34",
+          "line_start": 25,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.545,
+          "code_chunk": "public String getPassword() {\n\t\treturn password;\n\t}\n\n\tpublic void setPassword(String password) {\n\t\tthis.password = password;\n\t}\n\n\tpublic String getName() {\n\t\treturn name;",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "29-38",
+          "line_start": 29,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.54,
+          "code_chunk": "public void setPassword(String password) {\n\t\tthis.password = password;\n\t}\n\n\tpublic String getName() {\n\t\treturn name;\n\t}\n\n\tpublic void setName(String name) {\n\t\tthis.name = name;",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "33-42",
+          "line_start": 33,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.545,
+          "code_chunk": "public String getName() {\n\t\treturn name;\n\t}\n\n\tpublic void setName(String name) {\n\t\tthis.name = name;\n\t}\n\n\tpublic int getId() {\n\t\treturn id;",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "37-46",
+          "line_start": 37,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.42,
+          "code_chunk": "public void setName(String name) {\n\t\tthis.name = name;\n\t}\n\n\tpublic int getId() {\n\t\treturn id;\n\t}\n\n\tpublic void setId(int id) {\n\t\tthis.id = id;",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "41-50",
+          "line_start": 41,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.655,
+          "code_chunk": "public int getId() {\n\t\treturn id;\n\t}\n\n\tpublic void setId(int id) {\n\t\tthis.id = id;\n\t}\n\n\tpublic String getEmail() {\n\t\treturn email;",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "45-54",
+          "line_start": 45,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.65,
+          "code_chunk": "public void setId(int id) {\n\t\tthis.id = id;\n\t}\n\n\tpublic String getEmail() {\n\t\treturn email;\n\t}\n\n\tpublic void setEmail(String email) {\n\t\tthis.email = email;",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        }
+      ],
+      "finding_count": 11,
+      "has_critical": true
+    },
+    {
+      "file": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\repository\\AdvertisementRepository.java",
+      "relative_path": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\repository\\AdvertisementRepository.java",
+      "extension": ".java",
+      "skipped": false,
+      "total_lines": 84,
+      "findings": [
+        {
+          "line_range": "21-30",
+          "line_start": 21,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.505,
+          "code_chunk": "*\n */\n@Repository\npublic class AdvertisementRepository {\n\n\t@Autowired\n\tprivate JdbcTemplate jdbcTemplate;\n\n\tprivate static final RowMapper<Advertisement> ROW_MAPPER = (rs, n) -> {\n\t\tAdvertisement ad = new Advertisement();",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        },
+        {
+          "line_range": "25-34",
+          "line_start": 25,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.465,
+          "code_chunk": "@Autowired\n\tprivate JdbcTemplate jdbcTemplate;\n\n\tprivate static final RowMapper<Advertisement> ROW_MAPPER = (rs, n) -> {\n\t\tAdvertisement ad = new Advertisement();\n\t\tad.setId(rs.getInt(\"ID\"));\n\t\tad.setCreateDate(rs.getDate(\"CREATE_DATE\"));\n\t\tad.setTitle(rs.getString(\"TITLE\"));\n\t\tad.setText(rs.getString(\"TEXT\"));",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "29-38",
+          "line_start": 29,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.395,
+          "code_chunk": "private static final RowMapper<Advertisement> ROW_MAPPER = (rs, n) -> {\n\t\tAdvertisement ad = new Advertisement();\n\t\tad.setId(rs.getInt(\"ID\"));\n\t\tad.setCreateDate(rs.getDate(\"CREATE_DATE\"));\n\t\tad.setTitle(rs.getString(\"TITLE\"));\n\t\tad.setText(rs.getString(\"TEXT\"));\n\n\t\tUser user = new User();\n\t\tuser.setId(rs.getInt(\"USER_ID\"));\n\t\tuser.setName(rs.getString(\"NAME\"));",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "33-42",
+          "line_start": 33,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.425,
+          "code_chunk": "ad.setTitle(rs.getString(\"TITLE\"));\n\t\tad.setText(rs.getString(\"TEXT\"));\n\n\t\tUser user = new User();\n\t\tuser.setId(rs.getInt(\"USER_ID\"));\n\t\tuser.setName(rs.getString(\"NAME\"));\n\t\tuser.setEmail(rs.getString(\"EMAIL\"));\n\t\tad.setUser(user);\n\n\t\treturn ad;",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "37-46",
+          "line_start": 37,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.41,
+          "code_chunk": "user.setId(rs.getInt(\"USER_ID\"));\n\t\tuser.setName(rs.getString(\"NAME\"));\n\t\tuser.setEmail(rs.getString(\"EMAIL\"));\n\t\tad.setUser(user);\n\n\t\treturn ad;\n\t};\n\n\t/**\n\t * Creates a new ad on the database.",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "41-50",
+          "line_start": 41,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.455,
+          "code_chunk": "return ad;\n\t};\n\n\t/**\n\t * Creates a new ad on the database.\n\t */\n\tpublic void insert(Advertisement ad) {\n\t\tString sql = \"INSERT INTO ADVERTISEMENT(CREATE_DATE, TITLE, TEXT, USER_ID) VALUES (?, ?, ?, ?)\";\n\t\tKeyHolder holder = new GeneratedKeyHolder();",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "57-66",
+          "line_start": 57,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.58,
+          "code_chunk": "pstmt.setInt(4, ad.getUser().getId());\n\t\t\treturn pstmt;\n\t\t}, holder);\n\n\t\tad.setId(holder.getKey().intValue());\n\t}\n\n\t/**\n\t * @return All the ads ordered by date.\n\t */",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "61-70",
+          "line_start": 61,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.465,
+          "code_chunk": "ad.setId(holder.getKey().intValue());\n\t}\n\n\t/**\n\t * @return All the ads ordered by date.\n\t */\n\tpublic List<Advertisement> findAll() {\n\t\treturn this.jdbcTemplate.query(getBaseQuery() + \" ORDER BY ad.CREATE_DATE DESC\", ROW_MAPPER);\n\t}",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "65-74",
+          "line_start": 65,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.57,
+          "code_chunk": "* @return All the ads ordered by date.\n\t */\n\tpublic List<Advertisement> findAll() {\n\t\treturn this.jdbcTemplate.query(getBaseQuery() + \" ORDER BY ad.CREATE_DATE DESC\", ROW_MAPPER);\n\t}\n\n\t/**\n\t * @return All the ads with the matching keyword.\n\t */\n\tpublic List<Advertisement> findByKeyword(String keyword) {",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "69-78",
+          "line_start": 69,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.62,
+          "code_chunk": "}\n\n\t/**\n\t * @return All the ads with the matching keyword.\n\t */\n\tpublic List<Advertisement> findByKeyword(String keyword) {\n\t\tString sql = getBaseQuery() + \" WHERE ad.TITLE LIKE ? OR ad.TEXT LIKE ? ORDER BY ad.CREATE_DATE DESC\";\n\t\tString wildcard = \"%\" + keyword + \"%\";\n\t\treturn this.jdbcTemplate.query(sql, new Object[] { wildcard, wildcard }, ROW_MAPPER);\n\t}",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "73-82",
+          "line_start": 73,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.525,
+          "code_chunk": "*/\n\tpublic List<Advertisement> findByKeyword(String keyword) {\n\t\tString sql = getBaseQuery() + \" WHERE ad.TITLE LIKE ? OR ad.TEXT LIKE ? ORDER BY ad.CREATE_DATE DESC\";\n\t\tString wildcard = \"%\" + keyword + \"%\";\n\t\treturn this.jdbcTemplate.query(sql, new Object[] { wildcard, wildcard }, ROW_MAPPER);\n\t}\n\n\tprivate String getBaseQuery() {\n\t\treturn \"SELECT ad.ID, ad.CREATE_DATE, ad.TITLE, ad.TEXT, ad.USER_ID, u.NAME, u.EMAIL FROM \"\n\t\t\t\t\t\t+ \"ADVERTISEMENT ad INNER JOIN USER u ON ad.USER_ID = u.ID\";",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        }
+      ],
+      "finding_count": 11,
+      "has_critical": true
+    },
+    {
+      "file": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\repository\\UserRepository.java",
+      "relative_path": "VulnerableWebApplication\\src\\main\\java\\com\\github\\rafaelrpinto\\vulnerablejavawebapp\\repository\\UserRepository.java",
+      "extension": ".java",
+      "skipped": false,
+      "total_lines": 90,
+      "findings": [
+        {
+          "line_range": "25-34",
+          "line_start": 25,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.4,
+          "code_chunk": "@Autowired\n\tprivate JdbcTemplate jdbcTemplate;\n\t\n\tprivate static final RowMapper<User> ROW_MAPPER = (rs, n) -> {\n\t\tUser user = new User();\n\t\tuser.setId(rs.getInt(\"ID\"));\n\t\tuser.setName(rs.getString(\"NAME\"));\n\t\tuser.setEmail(rs.getString(\"EMAIL\"));\n\t\treturn user;\n\t};",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "29-38",
+          "line_start": 29,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.41,
+          "code_chunk": "User user = new User();\n\t\tuser.setId(rs.getInt(\"ID\"));\n\t\tuser.setName(rs.getString(\"NAME\"));\n\t\tuser.setEmail(rs.getString(\"EMAIL\"));\n\t\treturn user;\n\t};\n\n\t/**\n\t * Creates a new user on the database.\n\t */",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "33-42",
+          "line_start": 33,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.58,
+          "code_chunk": "return user;\n\t};\n\n\t/**\n\t * Creates a new user on the database.\n\t */\n\tpublic void insert(User user) {\n\t\tString sql = \"INSERT INTO USER(NAME, EMAIL, PASSWORD) VALUES (?, ?, ?)\";\n\t\tKeyHolder holder = new GeneratedKeyHolder();",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "45-54",
+          "line_start": 45,
+          "label": "insecure_api",
+          "severity": "HIGH",
+          "icon": "\ud83d\udfe0",
+          "cwe": "CWE-295 / CWE-502 \u2014 Insecure API Use",
+          "confidence": 0.42,
+          "code_chunk": "pstmt.setString(1, user.getName());\n\t\t\tpstmt.setString(2, user.getEmail().toLowerCase().trim());\n\t\t\tpstmt.setString(3, user.getPassword());\n\t\t\treturn pstmt;\n\t\t}, holder);\n\t\t\n\t\tuser.setId(holder.getKey().intValue());\n\t}\n\n\t/**",
+          "remediation": "Enable TLS certificate validation. Use bcrypt/Argon2 for passwords. Avoid logging sensitive data."
+        },
+        {
+          "line_range": "49-58",
+          "line_start": 49,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.54,
+          "code_chunk": "}, holder);\n\t\t\n\t\tuser.setId(holder.getKey().intValue());\n\t}\n\n\t/**\n\t * @return The user with the provided ID.\n\t */\n\tpublic User find(int id) {\n\t\tString sql = getBaseQuery() + \" WHERE ID = ?\";",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "53-62",
+          "line_start": 53,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.52,
+          "code_chunk": "/**\n\t * @return The user with the provided ID.\n\t */\n\tpublic User find(int id) {\n\t\tString sql = getBaseQuery() + \" WHERE ID = ?\";\n\t\treturn this.jdbcTemplate.queryForObject(sql, new Object[] { id }, ROW_MAPPER);\n\t};\n\t\n\t/**",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "57-66",
+          "line_start": 57,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.595,
+          "code_chunk": "public User find(int id) {\n\t\tString sql = getBaseQuery() + \" WHERE ID = ?\";\n\t\treturn this.jdbcTemplate.queryForObject(sql, new Object[] { id }, ROW_MAPPER);\n\t};\n\t\n\t/**\n\t * @return The user with the provided e-mail.\n\t */\n\tpublic User find(String email) {\n\t\ttry {",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "61-70",
+          "line_start": 61,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.57,
+          "code_chunk": "/**\n\t * @return The user with the provided e-mail.\n\t */\n\tpublic User find(String email) {\n\t\ttry {\n\t\t\tString sql = getBaseQuery() + \" WHERE EMAIL = ?\";\n\t\t\treturn this.jdbcTemplate.queryForObject(sql, new Object[] { email.toLowerCase().trim() }, ROW_MAPPER);\n\t\t} catch (EmptyResultDataAccessException e) {\n\t\t\treturn null;",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "65-74",
+          "line_start": 65,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.57,
+          "code_chunk": "public User find(String email) {\n\t\ttry {\n\t\t\tString sql = getBaseQuery() + \" WHERE EMAIL = ?\";\n\t\t\treturn this.jdbcTemplate.queryForObject(sql, new Object[] { email.toLowerCase().trim() }, ROW_MAPPER);\n\t\t} catch (EmptyResultDataAccessException e) {\n\t\t\treturn null;\n\t\t}\n\t};\n\n\t/**",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "73-82",
+          "line_start": 73,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.505,
+          "code_chunk": "/**\n\t * @return the user if the provided credentials are correct.\n\t */\n\tpublic User authenticate(String email, String password) {\n\t\ttry {\n\t\t\tString sql = getBaseQuery() + \" WHERE EMAIL = ? AND PASSWORD = ?\";\n\t\t\treturn this.jdbcTemplate.queryForObject(sql, new Object[] { email.toLowerCase().trim(), password }, ROW_MAPPER);\n\t\t} catch (EmptyResultDataAccessException e) {\n\t\t\treturn null;",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "77-86",
+          "line_start": 77,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.44,
+          "code_chunk": "public User authenticate(String email, String password) {\n\t\ttry {\n\t\t\tString sql = getBaseQuery() + \" WHERE EMAIL = ? AND PASSWORD = ?\";\n\t\t\treturn this.jdbcTemplate.queryForObject(sql, new Object[] { email.toLowerCase().trim(), password }, ROW_MAPPER);\n\t\t} catch (EmptyResultDataAccessException e) {\n\t\t\treturn null;\n\t\t}\n\t};\n\n\tprivate String getBaseQuery() {",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        },
+        {
+          "line_range": "81-90",
+          "line_start": 81,
+          "label": "sql_injection",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-89  \u2014 SQL Injection",
+          "confidence": 0.395,
+          "code_chunk": "} catch (EmptyResultDataAccessException e) {\n\t\t\treturn null;\n\t\t}\n\t};\n\n\tprivate String getBaseQuery() {\n\t\treturn \"SELECT ID, NAME, EMAIL FROM USER\";\n\t}\n\n}",
+          "remediation": "Use parameterised queries / PreparedStatement. Never concatenate user input into SQL strings."
+        }
+      ],
+      "finding_count": 12,
+      "has_critical": true
+    },
+    {
+      "file": "VulnerableWebApplication\\src\\main\\resources\\application.properties",
+      "relative_path": "VulnerableWebApplication\\src\\main\\resources\\application.properties",
+      "extension": ".properties",
+      "skipped": false,
+      "total_lines": 3,
+      "findings": [
+        {
+          "line_range": "1-3",
+          "line_start": 1,
+          "label": "hardcoded_secret",
+          "severity": "CRITICAL",
+          "icon": "\ud83d\udd34",
+          "cwe": "CWE-798 \u2014 Hardcoded Credentials",
+          "confidence": 0.35,
+          "code_chunk": "server.port=9000\nserver.ssl.key-store = classpath:keystore.jks\nserver.ssl.key-password = secret",
+          "remediation": "Move all credentials to environment variables or AWS Secrets Manager / HashiCorp Vault."
+        }
+      ],
+      "finding_count": 1,
+      "has_critical": true
+    }
+  ]
+}
