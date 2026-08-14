@@ -2,39 +2,56 @@ name: AI SAST Security Scan
 
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
 
   pull_request:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
 
 env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: sast-ml-scanner-repo
   LAMBDA_FUNCTION: sast-ml-scanner-fn
+  AWS_ROLE_ARN: arn:aws:iam::716393851217:role/github-actions-sast-deploy
 
+# Required for GitHub OIDC
 permissions:
-  id-token: write
   contents: read
+  id-token: write
 
 jobs:
 
   build-and-deploy:
+    name: Build and Deploy
     runs-on: ubuntu-latest
+
+    # Explicit job-level permissions
+    permissions:
+      contents: read
+      id-token: write
 
     outputs:
       image_uri: ${{ steps.build.outputs.image_uri }}
 
     steps:
-      - uses: actions/checkout@v6
 
-      - name: Configure AWS credentials
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: arn:aws:iam::716393851217:role/github-actions-sast-deploy
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-SAST
 
       - name: Verify AWS identity
-        run: aws sts get-caller-identity
+        run: |
+          echo "Verifying AWS identity..."
+          aws sts get-caller-identity
 
       - name: Login to Amazon ECR
         id: ecr-login
@@ -45,91 +62,140 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
         run: |
-          IMAGE_URI=$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          set -e
 
-          docker build -t $IMAGE_URI ./api
-          docker push $IMAGE_URI
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA}"
+          LATEST_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
+
+          echo "Building image: ${IMAGE_URI}"
+
+          docker build \
+            -t "${IMAGE_URI}" \
+            ./api
+
+          docker push "${IMAGE_URI}"
 
           docker tag \
-            $IMAGE_URI \
-            $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
+            "${IMAGE_URI}" \
+            "${LATEST_IMAGE}"
 
-          docker push \
-            $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
+          docker push "${LATEST_IMAGE}"
 
-          echo "image_uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+          echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
 
       - name: Update Lambda function
         run: |
+          set -e
+
           aws lambda update-function-code \
-            --function-name ${{ env.LAMBDA_FUNCTION }} \
-            --image-uri ${{ steps.build.outputs.image_uri }}
+            --function-name "${LAMBDA_FUNCTION}" \
+            --image-uri "${{ steps.build.outputs.image_uri }}"
 
           aws lambda wait function-updated \
-            --function-name ${{ env.LAMBDA_FUNCTION }}
+            --function-name "${LAMBDA_FUNCTION}"
 
 
   scan-changed-files:
+    name: Scan Changed Java Files
     needs: build-and-deploy
     runs-on: ubuntu-latest
 
     permissions:
-      id-token: write
       contents: read
+      id-token: write
       issues: write
       pull-requests: write
 
     steps:
-      - uses: actions/checkout@v6
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: arn:aws:iam::716393851217:role/github-actions-sast-deploy
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-SAST-Scan
 
       - name: Verify AWS identity
-        run: aws sts get-caller-identity
+        run: |
+          echo "Verifying AWS identity..."
+          aws sts get-caller-identity
 
       - name: Get changed Java files
         id: changed
+        shell: bash
         run: |
-          git diff --name-only origin/${{ github.base_ref || 'main' }}...HEAD \
-            | grep '\.java$' > changed_files.txt || true
+          set -e
 
-          echo "count=$(wc -l < changed_files.txt)" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_REF="origin/${{ github.base_ref }}"
 
-          cat changed_files.txt
+            git diff \
+              --name-only \
+              "${BASE_REF}...HEAD" \
+              | grep '\.java$' > changed_files.txt || true
+
+          else
+            git diff \
+              --name-only \
+              HEAD~1 HEAD \
+              | grep '\.java$' > changed_files.txt || true
+          fi
+
+          COUNT=$(wc -l < changed_files.txt | tr -d ' ')
+
+          echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
+
+          echo "Changed Java files:"
+          cat changed_files.txt || true
 
       - name: Scan each changed file via Lambda
         if: steps.changed.outputs.count != '0'
+        shell: bash
         run: |
+          set -e
+
           mkdir -p reports
+
           FAIL=0
 
           while IFS= read -r file; do
+
             [ -z "$file" ] && continue
 
             echo "Scanning: $file"
+
+            if [ ! -f "$file" ]; then
+              echo "File does not exist: $file"
+              continue
+            fi
 
             CONTENT=$(jq -Rs . < "$file")
 
             PAYLOAD=$(jq -n \
               --arg fn "$file" \
               --argjson content "$CONTENT" \
-              '{mode:"file", filename:$fn, content:$content}')
+              '{
+                mode: "file",
+                filename: $fn,
+                content: $content
+              }')
+
+            REPORT_FILE="reports/$(basename "$file").json"
 
             aws lambda invoke \
-              --function-name ${{ env.LAMBDA_FUNCTION }} \
+              --function-name "${LAMBDA_FUNCTION}" \
               --cli-binary-format raw-in-base64-out \
               --payload "$PAYLOAD" \
-              "reports/$(basename "$file").json"
+              "$REPORT_FILE"
 
             CRITICAL=$(jq -r \
               '.body | fromjson | .has_critical' \
-              "reports/$(basename "$file").json" 2>/dev/null)
+              "$REPORT_FILE" 2>/dev/null || echo "false")
 
             if [ "$CRITICAL" = "true" ]; then
               echo "::error file=$file::CRITICAL vulnerability found"
@@ -146,13 +212,17 @@ jobs:
         with:
           name: sast-scan-reports
           path: reports/
+          if-no-files-found: ignore
 
       - name: Upload reports to S3
         if: always()
         run: |
-          aws s3 cp reports/ \
-            s3://sast-ml-scanner-reports-716393851217/${{ github.run_id }}/ \
-            --recursive || true
+          if [ -d "reports" ]; then
+            aws s3 cp \
+              reports/ \
+              "s3://sast-ml-scanner-reports-716393851217/${GITHUB_RUN_ID}/" \
+              --recursive
+          fi
 
       - name: Comment findings on Pull Request
         if: github.event_name == 'pull_request' && always()
@@ -162,22 +232,24 @@ jobs:
             const fs = require('fs');
 
             if (!fs.existsSync('reports')) {
+              console.log('No reports directory found');
               return;
             }
 
             const files = fs.readdirSync('reports');
 
             if (files.length === 0) {
+              console.log('No scan reports found');
               return;
             }
 
             let comment = '## 🛡️ AI SAST Scan Results\n\n';
             let anyCritical = false;
 
-            for (const f of files) {
+            for (const file of files) {
               try {
                 const data = JSON.parse(
-                  fs.readFileSync(`reports/${f}`)
+                  fs.readFileSync(`reports/${file}`, 'utf8')
                 );
 
                 const body = JSON.parse(data.body);
@@ -189,7 +261,7 @@ jobs:
                 comment += `### ${body.filename}\n`;
                 comment += `Findings: ${body.finding_count}\n`;
 
-                for (const finding of (body.findings || [])) {
+                for (const finding of body.findings || []) {
                   comment +=
                     `- **${finding.label}** ` +
                     `(${finding.severity}) — ` +
@@ -197,16 +269,18 @@ jobs:
                     `confidence ${(finding.confidence * 100).toFixed(1)}%\n`;
                 }
 
-              } catch (e) {
-                console.log(`Error reading ${f}:`, e);
+                comment += '\n';
+
+              } catch (error) {
+                console.log(`Could not parse ${file}:`, error);
               }
             }
 
             comment += anyCritical
               ? '\n❌ **Build blocked — CRITICAL vulnerabilities found.**'
-              : '\n✅ No critical issues found.';
+              : '\n✅ **No critical issues found.**';
 
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
