@@ -1,0 +1,3 @@
+{
+  "body": "{\"mode\":\"snippet\",\"code\":\"String q = \\\"SELECT * FROM users WHERE id=\\\" + userId;\"}"
+}
