@@ -3,6 +3,7 @@ name: AI SAST Security Scan
 on:
   push:
     branches: [main, develop]
+
   pull_request:
     branches: [main, develop]
 
@@ -14,44 +15,48 @@ env:
 permissions:
   id-token: write
   contents: read
-  issues: write
-  pull-requests: write
 
 jobs:
 
   build-and-deploy:
     runs-on: ubuntu-latest
+
     outputs:
       image_uri: ${{ steps.build.outputs.image_uri }}
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Debug OIDC token
-        run: |
-          echo "Repo: ${{ github.repository }}"
-          echo "Ref: ${{ github.ref }}"
-          echo "Actor: ${{ github.actor }}"
+    steps:
+      - uses: actions/checkout@v6
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::716393851217:role/github-actions-sast-deploy
-          aws-region: ap-south-1
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
 
       - name: Login to Amazon ECR
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build tag and push Docker image
+      - name: Build, tag, and push Docker image
         id: build
         env:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
         run: |
           IMAGE_URI=$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+
           docker build -t $IMAGE_URI ./api
           docker push $IMAGE_URI
-          docker tag $IMAGE_URI $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
-          docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
+
+          docker tag \
+            $IMAGE_URI \
+            $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
+
+          docker push \
+            $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
+
           echo "image_uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
 
       - name: Update Lambda function
@@ -59,30 +64,43 @@ jobs:
           aws lambda update-function-code \
             --function-name ${{ env.LAMBDA_FUNCTION }} \
             --image-uri ${{ steps.build.outputs.image_uri }}
+
           aws lambda wait function-updated \
             --function-name ${{ env.LAMBDA_FUNCTION }}
+
 
   scan-changed-files:
     needs: build-and-deploy
     runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+      issues: write
+      pull-requests: write
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::716393851217:role/github-actions-sast-deploy
-          aws-region: ap-south-1
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
 
       - name: Get changed Java files
         id: changed
         run: |
           git diff --name-only origin/${{ github.base_ref || 'main' }}...HEAD \
             | grep '\.java$' > changed_files.txt || true
+
           echo "count=$(wc -l < changed_files.txt)" >> "$GITHUB_OUTPUT"
-          echo "Changed files:"
+
           cat changed_files.txt
 
       - name: Scan each changed file via Lambda
@@ -90,26 +108,36 @@ jobs:
         run: |
           mkdir -p reports
           FAIL=0
+
           while IFS= read -r file; do
             [ -z "$file" ] && continue
+
             echo "Scanning: $file"
+
             CONTENT=$(jq -Rs . < "$file")
+
             PAYLOAD=$(jq -n \
               --arg fn "$file" \
               --argjson content "$CONTENT" \
               '{mode:"file", filename:$fn, content:$content}')
+
             aws lambda invoke \
               --function-name ${{ env.LAMBDA_FUNCTION }} \
               --cli-binary-format raw-in-base64-out \
               --payload "$PAYLOAD" \
-              "reports/$(basename $file).json"
-            CRITICAL=$(jq -r '.body | fromjson | .has_critical' \
-              "reports/$(basename $file).json" 2>/dev/null)
+              "reports/$(basename "$file").json"
+
+            CRITICAL=$(jq -r \
+              '.body | fromjson | .has_critical' \
+              "reports/$(basename "$file").json" 2>/dev/null)
+
             if [ "$CRITICAL" = "true" ]; then
-              echo "CRITICAL vulnerability found in $file"
+              echo "::error file=$file::CRITICAL vulnerability found"
               FAIL=1
             fi
+
           done < changed_files.txt
+
           exit $FAIL
 
       - name: Upload reports as artifact
@@ -126,32 +154,58 @@ jobs:
             s3://sast-ml-scanner-reports-716393851217/${{ github.run_id }}/ \
             --recursive || true
 
-      - name: Comment findings on PR
+      - name: Comment findings on Pull Request
         if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            if (!fs.existsSync('reports')) return;
+
+            if (!fs.existsSync('reports')) {
+              return;
+            }
+
             const files = fs.readdirSync('reports');
-            if (files.length === 0) return;
-            let comment = '## AI SAST Scan Results\n\n';
+
+            if (files.length === 0) {
+              return;
+            }
+
+            let comment = '## 🛡️ AI SAST Scan Results\n\n';
             let anyCritical = false;
+
             for (const f of files) {
               try {
-                const data = JSON.parse(fs.readFileSync(`reports/${f}`));
+                const data = JSON.parse(
+                  fs.readFileSync(`reports/${f}`)
+                );
+
                 const body = JSON.parse(data.body);
-                if (body.has_critical) anyCritical = true;
+
+                if (body.has_critical) {
+                  anyCritical = true;
+                }
+
                 comment += `### ${body.filename}\n`;
                 comment += `Findings: ${body.finding_count}\n`;
+
                 for (const finding of (body.findings || [])) {
-                  comment += `- **${finding.label}** (${finding.severity}) lines ${finding.line_range} confidence ${(finding.confidence*100).toFixed(1)}%\n`;
+                  comment +=
+                    `- **${finding.label}** ` +
+                    `(${finding.severity}) — ` +
+                    `lines ${finding.line_range}, ` +
+                    `confidence ${(finding.confidence * 100).toFixed(1)}%\n`;
                 }
-              } catch(e) {}
+
+              } catch (e) {
+                console.log(`Error reading ${f}:`, e);
+              }
             }
+
             comment += anyCritical
-              ? '\nBuild blocked CRITICAL vulnerabilities found.'
-              : '\nNo critical issues found.';
+              ? '\n❌ **Build blocked — CRITICAL vulnerabilities found.**'
+              : '\n✅ No critical issues found.';
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
