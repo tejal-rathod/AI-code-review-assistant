@@ -5,7 +5,6 @@ on:
     branches:
       - main
       - develop
-
   pull_request:
     branches:
       - main
@@ -18,30 +17,29 @@ env:
 
 permissions:
   contents: read
+  id-token: write
+  issues: write
+  pull-requests: write
 
 jobs:
 
   build-and-deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
-
     outputs:
       image_uri: ${{ steps.build.outputs.image_uri }}
 
     steps:
-
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      # Configure AWS using IAM User Access Keys
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # Verify which AWS identity is being used
       - name: Verify AWS identity
         run: aws sts get-caller-identity
 
@@ -55,156 +53,99 @@ jobs:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
         run: |
           set -e
-
           IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA}"
           LATEST_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
-
           echo "Building Docker image..."
-
-          docker build \
-            -t "${IMAGE_URI}" \
-            ./api
-
-          echo "Pushing image: ${IMAGE_URI}"
+          docker build -t "${IMAGE_URI}" ./api
           docker push "${IMAGE_URI}"
-
-          echo "Tagging latest image..."
           docker tag "${IMAGE_URI}" "${LATEST_IMAGE}"
-
-          echo "Pushing latest image..."
           docker push "${LATEST_IMAGE}"
-
           echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
 
       - name: Update Lambda function
         run: |
           set -e
-
-          echo "Updating Lambda with new Docker image..."
-
           aws lambda update-function-code \
             --function-name "${LAMBDA_FUNCTION}" \
             --image-uri "${{ steps.build.outputs.image_uri }}"
-
-          echo "Waiting for Lambda update..."
-
           aws lambda wait function-updated \
             --function-name "${LAMBDA_FUNCTION}"
-
 
   scan-changed-files:
     name: Scan Changed Java Files
     needs: build-and-deploy
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
       issues: write
       pull-requests: write
 
     steps:
-
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Configure AWS using IAM User Access Keys
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Verify AWS identity
-        run: aws sts get-caller-identity
 
       - name: Get changed Java files
         id: changed
         shell: bash
         run: |
           set -e
-
-          # For Pull Requests
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-
-            git diff \
-              --name-only \
+            git diff --name-only \
               "origin/${{ github.base_ref }}...HEAD" \
               | grep '\.java$' > changed_files.txt || true
-
-          # For Push events
           else
-
-            git diff \
-              --name-only \
-              HEAD~1 HEAD \
+            git diff --name-only HEAD~1 HEAD \
               | grep '\.java$' > changed_files.txt || true
-
           fi
-
           COUNT=$(wc -l < changed_files.txt | tr -d ' ')
-
           echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
-
           echo "Changed Java files:"
           cat changed_files.txt || true
-
 
       - name: Scan each changed file via Lambda
         if: steps.changed.outputs.count != '0'
         shell: bash
         run: |
           set -e
-
           mkdir -p reports
-
           FAIL=0
-
           while IFS= read -r file; do
-
             [ -z "$file" ] && continue
-
             echo "Scanning: $file"
-
             if [ ! -f "$file" ]; then
               echo "File not found: $file"
               continue
             fi
-
             CONTENT=$(jq -Rs . < "$file")
-
             PAYLOAD=$(jq -n \
               --arg fn "$file" \
               --argjson content "$CONTENT" \
-              '{
-                mode: "file",
-                filename: $fn,
-                content: $content
-              }')
-
+              '{mode:"file", filename:$fn, content:$content}')
             REPORT_FILE="reports/$(basename "$file").json"
-
             aws lambda invoke \
               --function-name "${LAMBDA_FUNCTION}" \
               --cli-binary-format raw-in-base64-out \
               --payload "$PAYLOAD" \
               "$REPORT_FILE"
-
-            CRITICAL=$(jq -r \
-              '.body | fromjson | .has_critical' \
+            echo "Lambda response for $file:"
+            cat "$REPORT_FILE"
+            CRITICAL=$(jq -r '.body | fromjson | .has_critical' \
               "$REPORT_FILE" 2>/dev/null || echo "false")
-
             if [ "$CRITICAL" = "true" ]; then
               echo "::error file=$file::CRITICAL vulnerability found"
               FAIL=1
             fi
-
           done < changed_files.txt
-
           exit $FAIL
-
 
       - name: Upload reports as artifact
         if: always()
@@ -214,28 +155,27 @@ jobs:
           path: reports/
           if-no-files-found: ignore
 
-
       - name: Upload reports to S3
         if: always()
         run: |
-          if [ -d "reports" ]; then
-
-            aws s3 cp \
-              reports/ \
+          if [ -d "reports" ] && [ "$(ls -A reports)" ]; then
+            aws s3 cp reports/ \
               "s3://sast-ml-scanner-reports-716393851217/${GITHUB_RUN_ID}/" \
               --recursive
-
           else
-            echo "No reports found to upload."
+            echo "No reports to upload"
           fi
-
 
       - name: Comment findings on Pull Request
         if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
+            const path = require('path');
+
+            console.log('Looking for reports...');
 
             if (!fs.existsSync('reports')) {
               console.log('No reports directory found');
@@ -243,6 +183,7 @@ jobs:
             }
 
             const files = fs.readdirSync('reports');
+            console.log('Report files found:', files);
 
             if (files.length === 0) {
               console.log('No scan reports found');
@@ -251,40 +192,58 @@ jobs:
 
             let comment = '## 🛡️ AI SAST Scan Results\n\n';
             let anyCritical = false;
+            let totalFindings = 0;
 
             for (const file of files) {
               try {
-                const data = JSON.parse(
-                  fs.readFileSync(`reports/${file}`, 'utf8')
-                );
+                const raw = fs.readFileSync(`reports/${file}`, 'utf8');
+                console.log(`Raw response for ${file}:`, raw);
 
-                const body = JSON.parse(data.body);
+                const data = JSON.parse(raw);
+                const body = typeof data.body === 'string'
+                  ? JSON.parse(data.body)
+                  : data.body;
 
-                if (body.has_critical) {
-                  anyCritical = true;
+                console.log(`Parsed body for ${file}:`, JSON.stringify(body));
+
+                if (body.has_critical) anyCritical = true;
+                totalFindings += (body.finding_count || 0);
+
+                comment += `### 📄 ${body.filename}\n`;
+                comment += `**Findings:** ${body.finding_count || 0}\n\n`;
+
+                if (body.findings && body.findings.length > 0) {
+                  comment += '| Severity | Type | Lines | Confidence |\n';
+                  comment += '|---|---|---|---|\n';
+                  for (const finding of body.findings) {
+                    const icon = finding.severity === 'CRITICAL' ? '🔴' :
+                                 finding.severity === 'HIGH' ? '🟠' : '🟡';
+                    comment += `| ${icon} ${finding.severity} `;
+                    comment += `| ${finding.label} `;
+                    comment += `| ${finding.line_range} `;
+                    comment += `| ${(finding.confidence * 100).toFixed(1)}% |\n`;
+                  }
+                  comment += '\n';
+                  for (const finding of body.findings) {
+                    comment += `> **Fix:** ${finding.remediation}\n\n`;
+                  }
+                } else {
+                  comment += '✅ No vulnerabilities found in this file.\n\n';
                 }
-
-                comment += `### ${body.filename}\n`;
-                comment += `Findings: ${body.finding_count}\n`;
-
-                for (const finding of body.findings || []) {
-                  comment +=
-                    `- **${finding.label}** ` +
-                    `(${finding.severity}) — ` +
-                    `lines ${finding.line_range}, ` +
-                    `confidence ${(finding.confidence * 100).toFixed(1)}%\n`;
-                }
-
-                comment += '\n';
 
               } catch (error) {
-                console.log(`Could not parse ${file}:`, error);
+                console.log(`Could not parse ${file}:`, error.message);
+                comment += `### ⚠️ ${file}\nCould not parse scan result.\n\n`;
               }
             }
 
+            comment += '---\n';
+            comment += `**Total findings:** ${totalFindings}\n\n`;
             comment += anyCritical
-              ? '\n❌ **Build blocked — CRITICAL vulnerabilities found.**'
-              : '\n✅ **No critical issues found.**';
+              ? '## ❌ Build blocked — CRITICAL vulnerabilities found.\nPlease fix before merging.'
+              : '## ✅ No critical issues found. Safe to merge.';
+
+            console.log('Posting comment to PR #' + context.issue.number);
 
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -292,3 +251,5 @@ jobs:
               repo: context.repo.repo,
               body: comment
             });
+
+            console.log('Comment posted successfully!');
