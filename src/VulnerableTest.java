@@ -4,6 +4,7 @@ public class VulnerableTest {
 
     public void findUser(String userId) {
         String query = "SELECT * FROM users WHERE id='" + userId + "'";
+		
         System.out.println(query);
     }
 }
