@@ -33,3 +33,4 @@ Thumbs.db
 .vscode/
 *.suo
 *.user
+/terraform/terraform.txt
