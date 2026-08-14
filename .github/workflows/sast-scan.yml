@@ -15,23 +15,15 @@ env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: sast-ml-scanner-repo
   LAMBDA_FUNCTION: sast-ml-scanner-fn
-  AWS_ROLE_ARN: arn:aws:iam::716393851217:role/github-actions-sast-deploy
 
-# Required for GitHub OIDC
 permissions:
   contents: read
-  id-token: write
 
 jobs:
 
   build-and-deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
-
-    # Explicit job-level permissions
-    permissions:
-      contents: read
-      id-token: write
 
     outputs:
       image_uri: ${{ steps.build.outputs.image_uri }}
@@ -41,17 +33,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Configure AWS credentials using OIDC
+      # Configure AWS using IAM User Access Keys
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-          role-session-name: GitHubActions-SAST
 
+      # Verify which AWS identity is being used
       - name: Verify AWS identity
-        run: |
-          echo "Verifying AWS identity..."
-          aws sts get-caller-identity
+        run: aws sts get-caller-identity
 
       - name: Login to Amazon ECR
         id: ecr-login
@@ -67,18 +59,19 @@ jobs:
           IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA}"
           LATEST_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
 
-          echo "Building image: ${IMAGE_URI}"
+          echo "Building Docker image..."
 
           docker build \
             -t "${IMAGE_URI}" \
             ./api
 
+          echo "Pushing image: ${IMAGE_URI}"
           docker push "${IMAGE_URI}"
 
-          docker tag \
-            "${IMAGE_URI}" \
-            "${LATEST_IMAGE}"
+          echo "Tagging latest image..."
+          docker tag "${IMAGE_URI}" "${LATEST_IMAGE}"
 
+          echo "Pushing latest image..."
           docker push "${LATEST_IMAGE}"
 
           echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
@@ -87,9 +80,13 @@ jobs:
         run: |
           set -e
 
+          echo "Updating Lambda with new Docker image..."
+
           aws lambda update-function-code \
             --function-name "${LAMBDA_FUNCTION}" \
             --image-uri "${{ steps.build.outputs.image_uri }}"
+
+          echo "Waiting for Lambda update..."
 
           aws lambda wait function-updated \
             --function-name "${LAMBDA_FUNCTION}"
@@ -102,7 +99,6 @@ jobs:
 
     permissions:
       contents: read
-      id-token: write
       issues: write
       pull-requests: write
 
@@ -113,17 +109,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Configure AWS credentials using OIDC
+      # Configure AWS using IAM User Access Keys
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-          role-session-name: GitHubActions-SAST-Scan
 
       - name: Verify AWS identity
-        run: |
-          echo "Verifying AWS identity..."
-          aws sts get-caller-identity
+        run: aws sts get-caller-identity
 
       - name: Get changed Java files
         id: changed
@@ -131,19 +126,22 @@ jobs:
         run: |
           set -e
 
+          # For Pull Requests
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE_REF="origin/${{ github.base_ref }}"
 
             git diff \
               --name-only \
-              "${BASE_REF}...HEAD" \
+              "origin/${{ github.base_ref }}...HEAD" \
               | grep '\.java$' > changed_files.txt || true
 
+          # For Push events
           else
+
             git diff \
               --name-only \
               HEAD~1 HEAD \
               | grep '\.java$' > changed_files.txt || true
+
           fi
 
           COUNT=$(wc -l < changed_files.txt | tr -d ' ')
@@ -152,6 +150,7 @@ jobs:
 
           echo "Changed Java files:"
           cat changed_files.txt || true
+
 
       - name: Scan each changed file via Lambda
         if: steps.changed.outputs.count != '0'
@@ -170,7 +169,7 @@ jobs:
             echo "Scanning: $file"
 
             if [ ! -f "$file" ]; then
-              echo "File does not exist: $file"
+              echo "File not found: $file"
               continue
             fi
 
@@ -206,6 +205,7 @@ jobs:
 
           exit $FAIL
 
+
       - name: Upload reports as artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -214,15 +214,21 @@ jobs:
           path: reports/
           if-no-files-found: ignore
 
+
       - name: Upload reports to S3
         if: always()
         run: |
           if [ -d "reports" ]; then
+
             aws s3 cp \
               reports/ \
               "s3://sast-ml-scanner-reports-716393851217/${GITHUB_RUN_ID}/" \
               --recursive
+
+          else
+            echo "No reports found to upload."
           fi
+
 
       - name: Comment findings on Pull Request
         if: github.event_name == 'pull_request' && always()
