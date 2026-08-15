@@ -212,11 +212,15 @@ jobs:
   # ════════════════════════════════════════════════════════
   # JOB 4 — Post combined SAST + SCA comment on PR
   # ════════════════════════════════════════════════════════
-  post-pr-comment:
+ post-pr-comment:
     name: Post PR Comment
     needs: [sast-scan, sca-scan]
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && always()
+    if: |
+      always() &&
+      github.event_name == 'pull_request' &&
+      (needs.sast-scan.result == 'success' || needs.sast-scan.result == 'failure') &&
+      (needs.sca-scan.result == 'success' || needs.sca-scan.result == 'failure')
     permissions:
       contents:      read
       issues:        write
@@ -245,7 +249,6 @@ jobs:
             const fs   = require('fs');
             const path = require('path');
 
-            // ── Helper: parse Lambda response body ────────────────────
             function parseReport(filePath) {
               try {
                 const raw  = fs.readFileSync(filePath, 'utf8');
@@ -258,51 +261,40 @@ jobs:
               }
             }
 
-            // ── Severity icon ─────────────────────────────────────────
             function icon(sev) {
               const map = { CRITICAL:'🔴', HIGH:'🟠', MEDIUM:'🟡', LOW:'🟢', SAFE:'✅' };
               return map[sev] || '⚪';
             }
 
-            let comment = '# 🛡️ AI Security Scan Report\n\n';
+            let comment     = '# 🛡️ AI Security Scan Report\n\n';
             let anyCritical = false;
             let totalSast   = 0;
             let totalSca    = 0;
 
-            // ════════════════════════════════════════════════════
-            // SECTION 1 — SAST Results
-            // ════════════════════════════════════════════════════
+            // ── SAST Section ─────────────────────────────────────────────
             comment += '## 🔍 SAST — Static Code Analysis\n\n';
 
-            const sastDir = 'sast_reports';
             let sastFiles = [];
-            try { sastFiles = fs.readdirSync(sastDir); } catch(e) {}
+            try { sastFiles = fs.readdirSync('sast_reports'); } catch(e) {}
 
             if (sastFiles.length === 0) {
               comment += '_No Java files changed in this PR._\n\n';
             } else {
               for (const f of sastFiles) {
-                const body = parseReport(path.join(sastDir, f));
+                const body = parseReport(path.join('sast_reports', f));
                 if (!body) continue;
-
                 if (body.has_critical) anyCritical = true;
                 totalSast += body.finding_count || 0;
-
                 comment += `### 📄 \`${body.filename}\`\n`;
-
                 if (body.findings && body.findings.length > 0) {
                   comment += `| # | Severity | Type | Lines | Confidence |\n`;
                   comment += `|---|---|---|---|---|\n`;
                   body.findings.forEach((f, i) => {
-                    comment += `| ${i+1} `;
-                    comment += `| ${icon(f.severity)} ${f.severity} `;
-                    comment += `| \`${f.label}\` `;
-                    comment += `| ${f.line_range} `;
-                    comment += `| ${(f.confidence * 100).toFixed(1)}% |\n`;
+                    comment += `| ${i+1} | ${icon(f.severity)} ${f.severity} | \`${f.label}\` | ${f.line_range} | ${(f.confidence*100).toFixed(1)}% |\n`;
                   });
                   comment += '\n';
                   body.findings.forEach(f => {
-                    comment += `> **${f.label} fix:** ${f.remediation}\n\n`;
+                    comment += `> **Fix:** ${f.remediation}\n\n`;
                   });
                 } else {
                   comment += '✅ No vulnerabilities found.\n\n';
@@ -310,6 +302,88 @@ jobs:
               }
             }
 
+            // ── SCA Section ───────────────────────────────────────────────
+            comment += '---\n\n## 📦 SCA — Dependency Analysis (NVD)\n\n';
+
+            let scaFiles = [];
+            try { scaFiles = fs.readdirSync('sca_reports'); } catch(e) {}
+
+            if (scaFiles.length === 0) {
+              comment += '_No pom.xml found or no dependencies scanned._\n\n';
+            } else {
+              for (const f of scaFiles) {
+                const body = parseReport(path.join('sca_reports', f));
+                if (!body) continue;
+                if (body.has_critical) anyCritical = true;
+                totalSca += body.vulnerable_count || 0;
+                comment += `### 📋 pom.xml — ${body.total_dependencies} dependencies scanned\n\n`;
+                if (body.findings && body.findings.length > 0) {
+                  comment += `| # | Severity | Artifact | Version | CVE | CVSS |\n`;
+                  comment += `|---|---|---|---|---|---|\n`;
+                  body.findings.forEach((f, i) => {
+                    comment += `| ${i+1} | ${icon(f.severity)} ${f.severity} | \`${f.artifact}\` | ${f.version} | [${f.top_cve}](https://nvd.nist.gov/vuln/detail/${f.top_cve}) | ${f.cvss_score} |\n`;
+                  });
+                  comment += '\n';
+                  body.findings.forEach(f => {
+                    comment += `> **${f.artifact}:** ${f.description.slice(0,150)}...\n`;
+                    comment += `> **Fix:** ${f.remediation}\n\n`;
+                  });
+                } else {
+                  comment += '✅ No vulnerable dependencies found.\n\n';
+                }
+                if (body.safe_deps && body.safe_deps.length > 0) {
+                  comment += `<details>\n<summary>✅ ${body.safe_deps.length} safe dependencies</summary>\n\n`;
+                  body.safe_deps.forEach(d => {
+                    comment += `- \`${d.artifact}\` @ ${d.version}\n`;
+                  });
+                  comment += '\n</details>\n\n';
+                }
+              }
+            }
+
+            // ── Summary ───────────────────────────────────────────────────
+            comment += '---\n\n## 📊 Summary\n\n';
+            comment += `| Category | Findings |\n|---|---|\n`;
+            comment += `| 🔍 SAST | ${totalSast} |\n`;
+            comment += `| 📦 SCA  | ${totalSca} |\n`;
+            comment += `| **Total** | **${totalSast + totalSca}** |\n\n`;
+            comment += anyCritical
+              ? '## ❌ Build Blocked\nCRITICAL vulnerabilities detected. Fix before merging.\n'
+              : (totalSast + totalSca > 0
+                ? '## ⚠️ Warnings Found\nNo CRITICAL issues but review findings above.\n'
+                : '## ✅ All Clear\nNo vulnerabilities detected. Safe to merge.\n');
+            comment += `\n_Scan: [Run #${context.runNumber}](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})_`;
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner:        context.repo.owner,
+              repo:         context.repo.repo,
+              body:         comment,
+            });
+
+            console.log('✅ PR comment posted!');
+
+      - name: Fail build if CRITICAL found
+        if: always()
+        shell: bash
+        run: |
+          CRITICAL=false
+          for f in sast_reports/*.json 2>/dev/null; do
+            [ -f "$f" ] || continue
+            VAL=$(jq -r '.body | fromjson | .has_critical' "$f" 2>/dev/null || echo "false")
+            [ "$VAL" = "true" ] && CRITICAL=true
+          done
+          for f in sca_reports/*.json 2>/dev/null; do
+            [ -f "$f" ] || continue
+            VAL=$(jq -r '.body | fromjson | .has_critical' "$f" 2>/dev/null || echo "false")
+            [ "$VAL" = "true" ] && CRITICAL=true
+          done
+          if [ "$CRITICAL" = "true" ]; then
+            echo "❌ CRITICAL vulnerabilities found — build failed"
+            exit 1
+          else
+            echo "✅ No critical issues"
+          fi
             // ════════════════════════════════════════════════════
             // SECTION 2 — SCA Results
             // ════════════════════════════════════════════════════
