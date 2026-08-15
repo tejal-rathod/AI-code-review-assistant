@@ -1,42 +1,47 @@
-name: AI SAST + SCA Security Scan
+name: AI SAST Security Scan
 
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
+
   pull_request:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
 
 env:
-  AWS_REGION:      ap-south-1
-  ECR_REPOSITORY:  sast-ml-scanner-repo
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY: sast-ml-scanner-repo
   LAMBDA_FUNCTION: sast-ml-scanner-fn
 
 permissions:
-  contents:      read
-  issues:        write
-  pull-requests: write
+  contents: read
 
 jobs:
 
-  # ════════════════════════════════════════════════════════
-  # JOB 1 — Build & deploy updated Lambda image
-  # ════════════════════════════════════════════════════════
   build-and-deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
+
     outputs:
       image_uri: ${{ steps.build.outputs.image_uri }}
 
     steps:
-      - uses: actions/checkout@v4
 
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # Configure AWS using IAM User Access Keys
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
+      # Verify which AWS identity is being used
       - name: Verify AWS identity
         run: aws sts get-caller-identity
 
@@ -50,353 +55,340 @@ jobs:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
         run: |
           set -e
+
           IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA}"
-          LATEST="${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
-          docker build -t "${IMAGE_URI}" ./api
+          LATEST_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
+
+          echo "Building Docker image..."
+
+          docker build \
+            -t "${IMAGE_URI}" \
+            ./api
+
+          echo "Pushing image: ${IMAGE_URI}"
           docker push "${IMAGE_URI}"
-          docker tag "${IMAGE_URI}" "${LATEST}"
-          docker push "${LATEST}"
+
+          echo "Tagging latest image..."
+          docker tag "${IMAGE_URI}" "${LATEST_IMAGE}"
+
+          echo "Pushing latest image..."
+          docker push "${LATEST_IMAGE}"
+
           echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
 
       - name: Update Lambda function
         run: |
           set -e
+
+          echo "Updating Lambda with new Docker image..."
+
           aws lambda update-function-code \
             --function-name "${LAMBDA_FUNCTION}" \
             --image-uri "${{ steps.build.outputs.image_uri }}"
+
+          echo "Waiting for Lambda update..."
+
           aws lambda wait function-updated \
             --function-name "${LAMBDA_FUNCTION}"
 
-  # ════════════════════════════════════════════════════════
-  # JOB 2 — SAST scan changed Java files
-  # ════════════════════════════════════════════════════════
-  sast-scan:
-    name: SAST — Scan Java Files
+
+  scan-changed-files:
+    name: Scan Changed Java Files
     needs: build-and-deploy
     runs-on: ubuntu-latest
+
     permissions:
-      contents:      read
-      issues:        write
+      contents: read
+      issues: write
       pull-requests: write
 
     steps:
-      - uses: actions/checkout@v4
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
+      # Configure AWS using IAM User Access Keys
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
 
       - name: Get changed Java files
         id: changed
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            git diff --name-only "origin/${{ github.base_ref }}...HEAD" \
-              | grep '\.java$' > sast_files.txt || true
-          else
-            git diff --name-only HEAD~1 HEAD \
-              | grep '\.java$' > sast_files.txt || true
-          fi
-          echo "Changed Java files:"
-          cat sast_files.txt || true
-          echo "count=$(wc -l < sast_files.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+          set -e
 
-      - name: Scan each Java file via Lambda
+          # For Pull Requests
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+
+            git diff \
+              --name-only \
+              "origin/${{ github.base_ref }}...HEAD" \
+              | grep '\.java$' > changed_files.txt || true
+
+          # For Push events
+          else
+
+            git diff \
+              --name-only \
+              HEAD~1 HEAD \
+              | grep '\.java$' > changed_files.txt || true
+
+          fi
+
+          COUNT=$(wc -l < changed_files.txt | tr -d ' ')
+
+          echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
+
+          echo "Changed Java files:"
+          cat changed_files.txt || true
+
+
+      - name: Scan each changed file via Lambda
         if: steps.changed.outputs.count != '0'
         shell: bash
         run: |
-          mkdir -p sast_reports
+          set -e
+
+          mkdir -p reports
+
           FAIL=0
+
           while IFS= read -r file; do
+
             [ -z "$file" ] && continue
-            [ -f "$file" ] || continue
-            echo "SAST scanning: $file"
+
+            echo "Scanning: $file"
+
+            if [ ! -f "$file" ]; then
+              echo "File not found: $file"
+              continue
+            fi
+
             CONTENT=$(jq -Rs . < "$file")
+
             PAYLOAD=$(jq -n \
               --arg fn "$file" \
               --argjson content "$CONTENT" \
-              '{mode:"file", filename:$fn, content:$content}')
+              '{
+                mode: "file",
+                filename: $fn,
+                content: $content
+              }')
+
+            REPORT_FILE="reports/$(basename "$file").json"
+
             aws lambda invoke \
               --function-name "${LAMBDA_FUNCTION}" \
               --cli-binary-format raw-in-base64-out \
               --payload "$PAYLOAD" \
-              "sast_reports/$(basename "$file").json"
-            echo "Response:"
-            cat "sast_reports/$(basename "$file").json"
-            CRITICAL=$(jq -r '.body | fromjson | .has_critical' \
-              "sast_reports/$(basename "$file").json" 2>/dev/null || echo "false")
-            [ "$CRITICAL" = "true" ] && FAIL=1
-          done < sast_files.txt
+              "$REPORT_FILE"
+
+            CRITICAL=$(jq -r \
+              '.body | fromjson | .has_critical' \
+              "$REPORT_FILE" 2>/dev/null || echo "false")
+
+            if [ "$CRITICAL" = "true" ]; then
+              echo "::error file=$file::CRITICAL vulnerability found"
+              FAIL=1
+            fi
+
+          done < changed_files.txt
+
           exit $FAIL
 
-      - name: Upload SAST reports
+
+      - name: Scan Maven dependencies via Lambda
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: sast-reports
-          path: sast_reports/
-          if-no-files-found: ignore
-
-  # ════════════════════════════════════════════════════════
-  # JOB 3 — SCA scan pom.xml via NVD
-  # ════════════════════════════════════════════════════════
-  sca-scan:
-    name: SCA — Scan pom.xml Dependencies
-    needs: build-and-deploy
-    runs-on: ubuntu-latest
-    permissions:
-      contents:      read
-      issues:        write
-      pull-requests: write
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
-
-      - name: Find pom.xml files
-        id: pom
         shell: bash
         run: |
-          find . -name "pom.xml" \
-            -not -path "./.git/*" \
-            -not -path "*/target/*" > pom_files.txt || true
-          echo "Found pom.xml files:"
-          cat pom_files.txt
-          echo "count=$(wc -l < pom_files.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
-
-      - name: Scan each pom.xml via Lambda (NVD)
-        if: steps.pom.outputs.count != '0'
-        shell: bash
-        run: |
+          set -e
           mkdir -p sca_reports
+          find . -name "pom.xml" -not -path "./.git/*" -not -path "*/target/*" > pom_files.txt || true
+
           while IFS= read -r pom; do
             [ -z "$pom" ] && continue
-            [ -f "$pom" ] || continue
-            echo "SCA scanning: $pom"
+            [ ! -f "$pom" ] && continue
+
+            echo "Scanning dependencies: $pom"
             CONTENT=$(jq -Rs . < "$pom")
             PAYLOAD=$(jq -n \
               --arg fn "$pom" \
               --argjson content "$CONTENT" \
               '{mode:"sca", filename:$fn, content:$content}')
+
             SAFE_NAME=$(echo "$pom" | tr '/' '_' | sed 's/^_//')
+
             aws lambda invoke \
               --function-name "${LAMBDA_FUNCTION}" \
               --cli-binary-format raw-in-base64-out \
               --payload "$PAYLOAD" \
               "sca_reports/${SAFE_NAME}.json"
-            echo "SCA Response:"
-            cat "sca_reports/${SAFE_NAME}.json"
           done < pom_files.txt
 
-      - name: Upload SCA reports
+      - name: Upload reports as artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sca-reports
+          name: sast-scan-reports
+          path: reports/
+          if-no-files-found: ignore
+
+      - name: Upload SCA reports as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sca-scan-reports
           path: sca_reports/
           if-no-files-found: ignore
 
-  # ════════════════════════════════════════════════════════
-  # JOB 4 — Post combined SAST + SCA comment on PR
-  # ════════════════════════════════════════════════════════
-  post-pr-comment:
-    name: Post PR Comment
-    needs: [sast-scan, sca-scan]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && always()
-    permissions:
-      contents:      read
-      issues:        write
-      pull-requests: write
 
-    steps:
-      - name: Download SAST reports
-        uses: actions/download-artifact@v4
-        with:
-          name: sast-reports
-          path: sast_reports
-        continue-on-error: true
+      - name: Upload reports to S3
+        if: always()
+        run: |
+          if [ -d "reports" ]; then
 
-      - name: Download SCA reports
-        uses: actions/download-artifact@v4
-        with:
-          name: sca-reports
-          path: sca_reports
-        continue-on-error: true
+            aws s3 cp \
+              reports/ \
+              "s3://sast-ml-scanner-reports-716393851217/${GITHUB_RUN_ID}/" \
+              --recursive
 
-      - name: Post combined SAST + SCA comment
+          else
+            echo "No reports found to upload."
+          fi
+
+
+      - name: Comment findings on Pull Request
+        if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v7
+        env:
+          LAMBDA_FUNCTION: ${{ env.LAMBDA_FUNCTION }}
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs   = require('fs');
-            const path = require('path');
+            const fs = require('fs');
 
-            // ── Helper: parse Lambda response body ────────────────────
-            function parseReport(filePath) {
+            function parseReport(file) {
               try {
-                const raw  = fs.readFileSync(filePath, 'utf8');
-                const data = JSON.parse(raw);
-                return typeof data.body === 'string'
-                  ? JSON.parse(data.body) : data.body;
+                const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+                return typeof data.body === 'string' ? JSON.parse(data.body) : data.body;
               } catch (e) {
-                console.log(`Parse error for ${filePath}: ${e.message}`);
+                console.log(`Could not parse ${file}: ${e.message}`);
                 return null;
               }
             }
 
-            // ── Severity icon ─────────────────────────────────────────
-            function icon(sev) {
-              const map = { CRITICAL:'🔴', HIGH:'🟠', MEDIUM:'🟡', LOW:'🟢', SAFE:'✅' };
-              return map[sev] || '⚪';
+            function icon(severity) {
+              return {
+                CRITICAL: '🔴',
+                HIGH: '🟠',
+                MEDIUM: '🟡',
+                LOW: '🟢'
+              }[severity] || '⚪';
             }
 
-            let comment = '# 🛡️ AI Security Scan Report\n\n';
+            let comment = '# 🛡️ AI Security Scan Results\n\n';
+            comment += '## 🤖 AI / ML Model\n\n';
+            comment += '| Property | Value |\n|---|---|\n';
+            comment += '| Model | `sast_pipeline.joblib` |\n';
+            comment += '| Scan Engine | AI SAST Lambda |\n';
+            comment += `| Lambda Function | \`${process.env.LAMBDA_FUNCTION || 'sast-ml-scanner-fn'}\` |\n`;
+            comment += '| Status | Executed |\n\n';
+
             let anyCritical = false;
-            let totalSast   = 0;
-            let totalSca    = 0;
+            let totalSast = 0;
+            let totalSca = 0;
 
-            // ════════════════════════════════════════════════════
-            // SECTION 1 — SAST Results
-            // ════════════════════════════════════════════════════
-            comment += '## 🔍 SAST — Static Code Analysis\n\n';
+            comment += '---\n\n## 🔍 SAST - Static Code Analysis\n\n';
+            let files = fs.existsSync('reports')
+              ? fs.readdirSync('reports').filter(f => f.endsWith('.json'))
+              : [];
 
-            const sastDir = 'sast_reports';
-            let sastFiles = [];
-            try { sastFiles = fs.readdirSync(sastDir); } catch(e) {}
-
-            if (sastFiles.length === 0) {
-              comment += '_No Java files changed in this PR._\n\n';
-            } else {
-              for (const f of sastFiles) {
-                const body = parseReport(path.join(sastDir, f));
-                if (!body) continue;
-
-                if (body.has_critical) anyCritical = true;
-                totalSast += body.finding_count || 0;
-
-                comment += `### 📄 \`${body.filename}\`\n`;
-
-                if (body.findings && body.findings.length > 0) {
-                  comment += `| # | Severity | Type | Lines | Confidence |\n`;
-                  comment += `|---|---|---|---|---|\n`;
-                  body.findings.forEach((f, i) => {
-                    comment += `| ${i+1} `;
-                    comment += `| ${icon(f.severity)} ${f.severity} `;
-                    comment += `| \`${f.label}\` `;
-                    comment += `| ${f.line_range} `;
-                    comment += `| ${(f.confidence * 100).toFixed(1)}% |\n`;
-                  });
-                  comment += '\n';
-                  body.findings.forEach(f => {
-                    comment += `> **${f.label} fix:** ${f.remediation}\n\n`;
-                  });
-                } else {
-                  comment += '✅ No vulnerabilities found.\n\n';
-                }
-              }
+            if (!files.length) {
+              comment += '_No SAST reports generated._\n\n';
             }
 
-            // ════════════════════════════════════════════════════
-            // SECTION 2 — SCA Results
-            // ════════════════════════════════════════════════════
-            comment += '---\n\n';
-            comment += '## 📦 SCA — Dependency Analysis (NVD)\n\n';
+            for (const f of files) {
+              const body = parseReport(`reports/${f}`);
+              if (!body) continue;
 
-            const scaDir = 'sca_reports';
-            let scaFiles = [];
-            try { scaFiles = fs.readdirSync(scaDir); } catch(e) {}
+              const findings = body.findings || [];
+              const count = Number(body.finding_count || findings.length || 0);
+              totalSast += count;
+              anyCritical ||= Boolean(body.has_critical);
 
-            if (scaFiles.length === 0) {
-              comment += '_No pom.xml found in this repository._\n\n';
-            } else {
-              for (const f of scaFiles) {
-                const body = parseReport(path.join(scaDir, f));
-                if (!body) continue;
+              comment += `### 📄 \`${body.filename || f}\`\n\n`;
 
-                if (body.has_critical) anyCritical = true;
-                totalSca += body.vulnerable_count || 0;
-
-                comment += `### 📋 \`pom.xml\` — ${body.total_dependencies} dependencies scanned\n\n`;
-
-                if (body.findings && body.findings.length > 0) {
-                  comment += `| # | Severity | Artifact | Version | CVE | CVSS |\n`;
-                  comment += `|---|---|---|---|---|---|\n`;
-                  body.findings.forEach((f, i) => {
-                    comment += `| ${i+1} `;
-                    comment += `| ${icon(f.severity)} ${f.severity} `;
-                    comment += `| \`${f.artifact}\` `;
-                    comment += `| ${f.version} `;
-                    comment += `| [${f.top_cve}](https://nvd.nist.gov/vuln/detail/${f.top_cve}) `;
-                    comment += `| ${f.cvss_score} |\n`;
-                  });
-                  comment += '\n';
-                  body.findings.forEach(f => {
-                    comment += `> **${f.artifact}:** ${f.description.slice(0, 150)}...\n`;
-                    comment += `> **Fix:** ${f.remediation}\n\n`;
-                  });
-                } else {
-                  comment += '✅ No vulnerable dependencies found.\n\n';
-                }
-
-                if (body.safe_deps && body.safe_deps.length > 0) {
-                  comment += `<details>\n<summary>✅ ${body.safe_deps.length} safe dependencies</summary>\n\n`;
-                  body.safe_deps.forEach(d => {
-                    comment += `- \`${d.artifact}\` @ ${d.version}\n`;
-                  });
-                  comment += '\n</details>\n\n';
-                }
+              if (!findings.length) {
+                comment += '✅ No vulnerabilities found.\n\n';
+                continue;
               }
+
+              comment += '| Severity | Finding | Lines | Confidence |\n';
+              comment += '|---|---|---|---|\n';
+
+              for (const finding of findings) {
+                const confidence = (Number(finding.confidence || 0) * 100).toFixed(1);
+                comment += `| ${icon(finding.severity)} ${finding.severity || '-'} | \`${finding.label || '-'}\` | ${finding.line_range || '-'} | ${confidence}% |\n`;
+              }
+              comment += '\n';
             }
 
-            // ════════════════════════════════════════════════════
-            // SECTION 3 — Summary
-            // ════════════════════════════════════════════════════
-            comment += '---\n\n';
-            comment += '## 📊 Summary\n\n';
-            comment += `| Category | Findings |\n`;
-            comment += `|---|---|\n`;
-            comment += `| 🔍 SAST vulnerabilities | ${totalSast} |\n`;
-            comment += `| 📦 SCA vulnerable deps  | ${totalSca} |\n`;
+            comment += '---\n\n## 📦 SCA - Dependency Analysis\n\n';
+            let scaFiles = fs.existsSync('sca_reports')
+              ? fs.readdirSync('sca_reports').filter(f => f.endsWith('.json'))
+              : [];
+
+            if (!scaFiles.length) {
+              comment += '_No SCA reports generated._\n\n';
+            }
+
+            for (const f of scaFiles) {
+              const body = parseReport(`sca_reports/${f}`);
+              if (!body) continue;
+
+              const findings = body.findings || [];
+              totalSca += Number(body.finding_count || body.vulnerable_count || findings.length || 0);
+              anyCritical ||= Boolean(body.has_critical);
+
+              comment += `### 📋 \`${body.filename || f}\`\n\n`;
+
+              if (!findings.length) {
+                comment += '✅ No vulnerable dependencies found.\n\n';
+                continue;
+              }
+
+              comment += '| Severity | Dependency | Version | CVE | CVSS |\n';
+              comment += '|---|---|---|---|---|\n';
+
+              for (const finding of findings) {
+                comment += `| ${icon(finding.severity)} ${finding.severity || '-'} | \`${finding.artifact || finding.label || '-'}\` | ${finding.version || '-'} | ${finding.top_cve || finding.cve || '-'} | ${finding.cvss_score || '-'} |\n`;
+              }
+              comment += '\n';
+            }
+
+            comment += '---\n\n## 📊 Security Summary\n\n';
+            comment += '| Scan | Findings |\n|---|---:|\n';
+            comment += `| 🔍 AI SAST | ${totalSast} |\n`;
+            comment += `| 📦 SCA | ${totalSca} |\n`;
             comment += `| **Total** | **${totalSast + totalSca}** |\n\n`;
 
-            if (anyCritical) {
-              comment += '## ❌ Build Blocked\n';
-              comment += 'CRITICAL vulnerabilities detected. Fix before merging.\n';
-            } else if (totalSast + totalSca > 0) {
-              comment += '## ⚠️ Warnings Found\n';
-              comment += 'No CRITICAL issues but review findings above.\n';
-            } else {
-              comment += '## ✅ All Clear\n';
-              comment += 'No vulnerabilities detected. Safe to merge.\n';
-            }
+            comment += anyCritical
+              ? '## ❌ Build Blocked\n\n**CRITICAL vulnerabilities were detected. Please fix them before merging.**\n'
+              : (totalSast + totalSca > 0
+                  ? '## ⚠️ Findings Detected\n\nPlease review the findings above before merging.\n'
+                  : '## ✅ Security Scan Passed\n\nNo vulnerabilities were detected.\n');
 
-            comment += `\n_Scan run: [#${context.runNumber}](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})_`;
-
-            // ── Post comment ──────────────────────────────────────
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
-              owner:        context.repo.owner,
-              repo:         context.repo.repo,
-              body:         comment,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
             });
-
-            console.log('✅ PR comment posted successfully');
-
-            // ── Fail job if critical ───────────────────────────────
-            if (anyCritical) {
-              core.setFailed('CRITICAL vulnerabilities found — merge blocked');
-            }
