@@ -45,15 +45,6 @@ jobs:
       - name: Verify AWS identity
         run: aws sts get-caller-identity
 
-      - name: Check Docker build context
-        run: |
-          echo "Files available inside api build context:"
-          find ./api -maxdepth 3 -type f | sort
-          echo ""
-          echo "Docker will use ./api as the build context."
-          echo "Therefore COPY models/sast_pipeline.joblib requires:"
-          echo "./api/models/sast_pipeline.joblib"
-
       - name: Login to Amazon ECR
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
@@ -215,12 +206,48 @@ jobs:
           exit $FAIL
 
 
+      - name: Scan Maven dependencies via Lambda
+        if: always()
+        shell: bash
+        run: |
+          set -e
+          mkdir -p sca_reports
+          find . -name "pom.xml" -not -path "./.git/*" -not -path "*/target/*" > pom_files.txt || true
+
+          while IFS= read -r pom; do
+            [ -z "$pom" ] && continue
+            [ ! -f "$pom" ] && continue
+
+            echo "Scanning dependencies: $pom"
+            CONTENT=$(jq -Rs . < "$pom")
+            PAYLOAD=$(jq -n \
+              --arg fn "$pom" \
+              --argjson content "$CONTENT" \
+              '{mode:"sca", filename:$fn, content:$content}')
+
+            SAFE_NAME=$(echo "$pom" | tr '/' '_' | sed 's/^_//')
+
+            aws lambda invoke \
+              --function-name "${LAMBDA_FUNCTION}" \
+              --cli-binary-format raw-in-base64-out \
+              --payload "$PAYLOAD" \
+              "sca_reports/${SAFE_NAME}.json"
+          done < pom_files.txt
+
       - name: Upload reports as artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sast-scan-reports
           path: reports/
+          if-no-files-found: ignore
+
+      - name: Upload SCA reports as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sca-scan-reports
+          path: sca_reports/
           if-no-files-found: ignore
 
 
@@ -242,58 +269,122 @@ jobs:
       - name: Comment findings on Pull Request
         if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v7
+        env:
+          LAMBDA_FUNCTION: ${{ env.LAMBDA_FUNCTION }}
         with:
           script: |
             const fs = require('fs');
 
-            if (!fs.existsSync('reports')) {
-              console.log('No reports directory found');
-              return;
-            }
-
-            const files = fs.readdirSync('reports');
-
-            if (files.length === 0) {
-              console.log('No scan reports found');
-              return;
-            }
-
-            let comment = '## 🛡️ AI SAST Scan Results\n\n';
-            let anyCritical = false;
-
-            for (const file of files) {
+            function parseReport(file) {
               try {
-                const data = JSON.parse(
-                  fs.readFileSync(`reports/${file}`, 'utf8')
-                );
-
-                const body = JSON.parse(data.body);
-
-                if (body.has_critical) {
-                  anyCritical = true;
-                }
-
-                comment += `### ${body.filename}\n`;
-                comment += `Findings: ${body.finding_count}\n`;
-
-                for (const finding of body.findings || []) {
-                  comment +=
-                    `- **${finding.label}** ` +
-                    `(${finding.severity}) — ` +
-                    `lines ${finding.line_range}, ` +
-                    `confidence ${(finding.confidence * 100).toFixed(1)}%\n`;
-                }
-
-                comment += '\n';
-
-              } catch (error) {
-                console.log(`Could not parse ${file}:`, error);
+                const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+                return typeof data.body === 'string' ? JSON.parse(data.body) : data.body;
+              } catch (e) {
+                console.log(`Could not parse ${file}: ${e.message}`);
+                return null;
               }
             }
 
+            function icon(severity) {
+              return {
+                CRITICAL: '🔴',
+                HIGH: '🟠',
+                MEDIUM: '🟡',
+                LOW: '🟢'
+              }[severity] || '⚪';
+            }
+
+            let comment = '# 🛡️ AI Security Scan Results\n\n';
+            comment += '## 🤖 AI / ML Model\n\n';
+            comment += '| Property | Value |\n|---|---|\n';
+            comment += '| Model | `sast_pipeline.joblib` |\n';
+            comment += '| Scan Engine | AI SAST Lambda |\n';
+            comment += `| Lambda Function | \`${process.env.LAMBDA_FUNCTION || 'sast-ml-scanner-fn'}\` |\n`;
+            comment += '| Status | Executed |\n\n';
+
+            let anyCritical = false;
+            let totalSast = 0;
+            let totalSca = 0;
+
+            comment += '---\n\n## 🔍 SAST - Static Code Analysis\n\n';
+            let files = fs.existsSync('reports')
+              ? fs.readdirSync('reports').filter(f => f.endsWith('.json'))
+              : [];
+
+            if (!files.length) {
+              comment += '_No SAST reports generated._\n\n';
+            }
+
+            for (const f of files) {
+              const body = parseReport(`reports/${f}`);
+              if (!body) continue;
+
+              const findings = body.findings || [];
+              const count = Number(body.finding_count || findings.length || 0);
+              totalSast += count;
+              anyCritical ||= Boolean(body.has_critical);
+
+              comment += `### 📄 \`${body.filename || f}\`\n\n`;
+
+              if (!findings.length) {
+                comment += '✅ No vulnerabilities found.\n\n';
+                continue;
+              }
+
+              comment += '| Severity | Finding | Lines | Confidence |\n';
+              comment += '|---|---|---|---|\n';
+
+              for (const finding of findings) {
+                const confidence = (Number(finding.confidence || 0) * 100).toFixed(1);
+                comment += `| ${icon(finding.severity)} ${finding.severity || '-'} | \`${finding.label || '-'}\` | ${finding.line_range || '-'} | ${confidence}% |\n`;
+              }
+              comment += '\n';
+            }
+
+            comment += '---\n\n## 📦 SCA - Dependency Analysis\n\n';
+            let scaFiles = fs.existsSync('sca_reports')
+              ? fs.readdirSync('sca_reports').filter(f => f.endsWith('.json'))
+              : [];
+
+            if (!scaFiles.length) {
+              comment += '_No SCA reports generated._\n\n';
+            }
+
+            for (const f of scaFiles) {
+              const body = parseReport(`sca_reports/${f}`);
+              if (!body) continue;
+
+              const findings = body.findings || [];
+              totalSca += Number(body.finding_count || body.vulnerable_count || findings.length || 0);
+              anyCritical ||= Boolean(body.has_critical);
+
+              comment += `### 📋 \`${body.filename || f}\`\n\n`;
+
+              if (!findings.length) {
+                comment += '✅ No vulnerable dependencies found.\n\n';
+                continue;
+              }
+
+              comment += '| Severity | Dependency | Version | CVE | CVSS |\n';
+              comment += '|---|---|---|---|---|\n';
+
+              for (const finding of findings) {
+                comment += `| ${icon(finding.severity)} ${finding.severity || '-'} | \`${finding.artifact || finding.label || '-'}\` | ${finding.version || '-'} | ${finding.top_cve || finding.cve || '-'} | ${finding.cvss_score || '-'} |\n`;
+              }
+              comment += '\n';
+            }
+
+            comment += '---\n\n## 📊 Security Summary\n\n';
+            comment += '| Scan | Findings |\n|---|---:|\n';
+            comment += `| 🔍 AI SAST | ${totalSast} |\n`;
+            comment += `| 📦 SCA | ${totalSca} |\n`;
+            comment += `| **Total** | **${totalSast + totalSca}** |\n\n`;
+
             comment += anyCritical
-              ? '\n❌ **Build blocked — CRITICAL vulnerabilities found.**'
-              : '\n✅ **No critical issues found.**';
+              ? '## ❌ Build Blocked\n\n**CRITICAL vulnerabilities were detected. Please fix them before merging.**\n'
+              : (totalSast + totalSca > 0
+                  ? '## ⚠️ Findings Detected\n\nPlease review the findings above before merging.\n'
+                  : '## ✅ Security Scan Passed\n\nNo vulnerabilities were detected.\n');
 
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
