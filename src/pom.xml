@@ -101,8 +101,7 @@
 
         </dependency>
 
-
-        <!-- 5. Intentionally old SnakeYAML -->
+     <!-- 5. Intentionally old SnakeYAML -->
         <dependency>
 
             <groupId>org.yaml</groupId>
