@@ -1,0 +1,149 @@
+package com.example.vulnerable;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.Statement;
+
+public class VulnerableApplication {
+
+    // 1. Hardcoded credentials / secret
+    private static final String DB_USERNAME = "admin";
+    private static final String DB_PASSWORD = "SuperSecretPassword123";
+
+    // 2. Hardcoded API key
+    private static final String API_KEY = "AKIA_TEST_SECRET_KEY_123456";
+
+    public static void main(String[] args) {
+
+        String userInput = args.length > 0 ? args[0] : "1";
+
+        try {
+
+            // 3. SQL Injection
+            Connection connection = DriverManager.getConnection(
+                    "jdbc:mysql://localhost:3306/testdb",
+                    DB_USERNAME,
+                    DB_PASSWORD
+            );
+
+            Statement statement = connection.createStatement();
+
+            String query =
+                    "SELECT * FROM users WHERE id = " + userInput;
+
+            ResultSet resultSet = statement.executeQuery(query);
+
+            while (resultSet.next()) {
+                System.out.println(resultSet.getString("username"));
+            }
+
+
+            // 4. Command Injection
+            Runtime.getRuntime().exec("cmd /c ping " + userInput);
+
+
+            // 5. Path Traversal
+            File file = new File("C:/application/files/" + userInput);
+
+            BufferedReader reader =
+                    new BufferedReader(new FileReader(file));
+
+            System.out.println(reader.readLine());
+
+
+            // 6. Sensitive information disclosure
+            try {
+                throw new RuntimeException("Database error");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+
+            // 7. Weak cryptographic algorithm
+            java.security.MessageDigest md =
+                    java.security.MessageDigest.getInstance("MD5");
+
+            byte[] hash =
+                    md.digest("password123".getBytes());
+
+            System.out.println(hash);
+
+
+            // 8. Use of insecure random generator
+            java.util.Random random = new java.util.Random();
+
+            int token = random.nextInt();
+
+            System.out.println("Generated token: " + token);
+
+
+            // 9. Insecure temporary file usage
+            File tempFile =
+                    new File("/tmp/application-data.txt");
+
+            tempFile.createNewFile();
+
+
+            // 10. Resource leak
+            FileReader fileReader =
+                    new FileReader("application.properties");
+
+            BufferedReader bufferedReader =
+                    new BufferedReader(fileReader);
+
+            System.out.println(bufferedReader.readLine());
+
+            // Resources intentionally not closed
+
+
+            // 11. Sensitive data written to logs
+            System.out.println(
+                    "User password is: " + DB_PASSWORD
+            );
+
+
+            // 12. Potential Null Pointer Dereference
+            String value = null;
+
+            System.out.println(value.length());
+
+
+            // 13. Unsafe deserialization placeholder
+            // ObjectInputStream can deserialize untrusted data
+            java.io.ObjectInputStream objectInputStream =
+                    new java.io.ObjectInputStream(
+                            new java.io.FileInputStream(userInput)
+                    );
+
+            Object object = objectInputStream.readObject();
+
+            System.out.println(object);
+
+
+            // 14. Open Redirect simulation
+            String redirectUrl = userInput;
+
+            System.out.println(
+                    "Redirecting user to: " + redirectUrl
+            );
+
+
+            // 15. Weak SSL/TLS configuration
+            javax.net.ssl.SSLContext sslContext =
+                    javax.net.ssl.SSLContext.getInstance("TLSv1");
+
+            sslContext.init(null, null, null);
+
+        } catch (Exception e) {
+
+            // Sensitive information exposure
+            e.printStackTrace();
+
+        }
+    }
+}
